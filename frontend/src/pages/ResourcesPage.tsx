@@ -4,8 +4,7 @@ import { DataTable } from '../components/DataTable'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
 import { Alert } from '../components/Alert'
-import { Badge } from '../components/Badge'
-import { Plus, Filter } from 'lucide-react'
+import { Plus } from 'lucide-react'
 
 export const ResourcesPage: React.FC = () => {
   const resources = [
