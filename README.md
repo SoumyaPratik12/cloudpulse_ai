@@ -151,3 +151,4 @@ This document contains:
 * **CI/CD Pipeline**: `.github/workflows/ci-cd.yml` - Automated tests, builds, and deployments
 * **Docker Setup**: `docker/docker-compose.yml` - Local development environment
 * **[Architecture (HLD/LLD)](docs/architecture.md)**: System design and data flow.
+* **Terraform IaC**: `infrastructure/` - Production deployment templates on AWS ECS Fargate & RDS.
