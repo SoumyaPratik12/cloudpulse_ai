@@ -30,7 +30,7 @@ resource "aws_db_instance" "db" {
   identifier             = "${var.app_name}-${var.environment}-db"
   allocated_storage      = 20
   engine                 = "postgres"
-  engine_version         = "15.4"
+  engine_version         = "15"
   instance_class         = "db.t3.micro"
   db_name                = "cloudpulse"
   username               = "postgres"
