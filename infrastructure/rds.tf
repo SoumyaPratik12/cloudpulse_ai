@@ -1,6 +1,6 @@
 resource "aws_db_subnet_group" "db_subnets" {
-  name       = "${var.app_name}-${var.environment}-db-subnets"
-  subnet_ids = [aws_subnet.private_1.id, aws_subnet.private_2.id]
+  name_prefix = "${var.app_name}-${var.environment}-db-subnets-"
+  subnet_ids  = [aws_subnet.private_1.id, aws_subnet.private_2.id]
   tags = {
     Name = "${var.app_name}-${var.environment}-db-subnet-group"
   }
