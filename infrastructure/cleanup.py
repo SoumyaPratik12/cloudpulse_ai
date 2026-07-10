@@ -8,145 +8,191 @@ iam = boto3.client('iam')
 rds = boto3.client('rds', region_name=region)
 ecs = boto3.client('ecs', region_name=region)
 
-print("Starting resource cleanup of cloudpulse-prod-* resources...")
+print("Starting deep resource cleanup of cloudpulse resources...")
 
-# 1. Scale down and delete ECS services
+# 1. Scale down and delete ECS services in any cluster containing "cloudpulse"
 try:
-    services = ecs.list_services(cluster='cloudpulse-prod-cluster')['serviceArns']
-    for s in services:
-        ecs.update_service(cluster='cloudpulse-prod-cluster', service=s, desiredCount=0)
-        ecs.delete_service(cluster='cloudpulse-prod-cluster', service=s)
-        print(f"Deleted ECS service: {s}")
+    clusters = ecs.list_clusters()['clusterArns']
+    for c_arn in clusters:
+        if 'cloudpulse' in c_arn.lower():
+            c_name = c_arn.split('/')[-1]
+            try:
+                services = ecs.list_services(cluster=c_name)['serviceArns']
+                for s in services:
+                    ecs.update_service(cluster=c_name, service=s, desiredCount=0)
+                    ecs.delete_service(cluster=c_name, service=s)
+                    print(f"Deleted ECS service: {s}")
+            except Exception as e:
+                pass
+            try:
+                ecs.delete_cluster(cluster=c_name)
+                print(f"Deleted ECS cluster: {c_name}")
+            except Exception as e:
+                pass
 except Exception as e:
-    pass
+    print(f"ECS cleanup info: {e}")
 
+# 2. Delete ALBs containing "cloudpulse"
 try:
-    ecs.delete_cluster(cluster='cloudpulse-prod-cluster')
-    print("Deleted ECS cluster")
-except Exception as e:
-    pass
-
-# 2. Delete Load Balancer
-try:
-    albs = elbv2.describe_load_balancers(Names=['cloudpulse-prod-alb'])['LoadBalancers']
+    albs = elbv2.describe_load_balancers()['LoadBalancers']
     for alb in albs:
-        elbv2.delete_load_balancer(LoadBalancerArn=alb['LoadBalancerArn'])
-        print(f"Triggered deletion of ALB: {alb['LoadBalancerArn']}")
+        if 'cloudpulse' in alb['LoadBalancerName'].lower():
+            alb_arn = alb['LoadBalancerArn']
+            elbv2.delete_load_balancer(LoadBalancerArn=alb_arn)
+            print(f"Triggered deletion of ALB: {alb_arn}")
 except Exception as e:
     pass
 
-# 3. Wait for ALB to disappear (takes up to 3 mins for AWS to release ENIs)
-print("Waiting for ALB deletion to complete...")
+# 3. Wait for ALBs to disappear (releasing network interfaces)
+print("Waiting for matching ALBs to delete...")
 for i in range(18):
+    albs_left = []
     try:
-        albs = elbv2.describe_load_balancers(Names=['cloudpulse-prod-alb'])['LoadBalancers']
-        if not albs:
-            print("ALB is fully deleted.")
-            break
+        albs = elbv2.describe_load_balancers()['LoadBalancers']
+        albs_left = [a for a in albs if 'cloudpulse' in a['LoadBalancerName'].lower()]
     except Exception:
-        print("ALB is fully deleted.")
+        pass
+    if not albs_left:
+        print("All matching ALBs are fully deleted.")
         break
     print(f"Still waiting for ALB deletion... ({i*10}s)")
     time.sleep(10)
 
-# 4. Delete Target Groups
-for tg_name in ['cloudpulse-prod-tg-fe', 'cloudpulse-prod-tg-be']:
-    try:
-        tgs = elbv2.describe_target_groups(Names=[tg_name])['TargetGroups']
-        for tg in tgs:
+# 4. Delete Target Groups containing "cloudpulse"
+try:
+    tgs = elbv2.describe_target_groups()['TargetGroups']
+    for tg in tgs:
+        if 'cloudpulse' in tg['TargetGroupName'].lower():
             elbv2.delete_target_group(TargetGroupArn=tg['TargetGroupArn'])
-            print(f"Deleted Target Group: {tg_name}")
-    except Exception as e:
-        pass
-
-# 5. Delete DB Subnet Group
-try:
-    rds.delete_db_subnet_group(DBSubnetGroupName='cloudpulse-prod-db-subnets')
-    print("Deleted DB Subnet Group")
+            print(f"Deleted Target Group: {tg['TargetGroupName']}")
 except Exception as e:
     pass
 
-# 6. Delete IAM Roles & Policies
+# 5. Delete DB Subnet Groups containing "cloudpulse"
 try:
-    iam.detach_role_policy(RoleName='cloudpulse-prod-ecs-execution-role', PolicyArn='arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy')
+    sngs = rds.describe_db_subnet_groups()['DBSubnetGroups']
+    for sng in sngs:
+        if 'cloudpulse' in sng['DBSubnetGroupName'].lower():
+            rds.delete_db_subnet_group(DBSubnetGroupName=sng['DBSubnetGroupName'])
+            print(f"Deleted DB Subnet Group: {sng['DBSubnetGroupName']}")
 except Exception as e:
     pass
+
+# 6. Delete IAM Roles & Policies containing "cloudpulse"
 try:
-    iam.delete_role(RoleName='cloudpulse-prod-ecs-execution-role')
-    print("Deleted execution role")
+    roles = iam.list_roles()['Roles']
+    for role in roles:
+        r_name = role['RoleName']
+        if 'cloudpulse' in r_name.lower():
+            # Detach all attached policies
+            policies = iam.list_attached_role_policies(RoleName=r_name)['AttachedPolicies']
+            for p in policies:
+                iam.detach_role_policy(RoleName=r_name, PolicyArn=p['PolicyArn'])
+            iam.delete_role(RoleName=r_name)
+            print(f"Deleted IAM Role: {r_name}")
 except Exception as e:
     pass
 
 try:
-    sts = boto3.client('sts')
-    acc_id = sts.get_caller_identity()['Account']
-    policy_arn = f"arn:aws:iam::{acc_id}:policy/cloudpulse-prod-aws-readonly"
-    iam.detach_role_policy(RoleName='cloudpulse-prod-ecs-task-role', PolicyArn=policy_arn)
-except Exception as e:
-    pass
-try:
-    iam.delete_role(RoleName='cloudpulse-prod-ecs-task-role')
-    print("Deleted task role")
-except Exception as e:
-    pass
-try:
-    iam.delete_policy(PolicyArn=policy_arn)
-    print("Deleted IAM policy")
+    policies = iam.list_policies(Scope='Local')['Policies']
+    for p in policies:
+        if 'cloudpulse' in p['PolicyName'].lower():
+            iam.delete_policy(PolicyArn=p['Arn'])
+            print(f"Deleted IAM Policy: {p['PolicyName']}")
 except Exception as e:
     pass
 
-# 7. Delete VPCs, Gateway attachments, Subnets and Routing
+# 7. Scan and clean up ALL non-default VPCs matching cloudpulse or CIDR 10.0.0.0/16
 try:
-    vpcs = ec2.describe_vpcs(Filters=[{'Name': 'tag:Name', 'Values': ['cloudpulse-prod-vpc']}])['Vpcs']
+    vpcs = ec2.describe_vpcs()['Vpcs']
     for v in vpcs:
         vpc_id = v['VpcId']
-        print(f"Cleaning up network interfaces in VPC: {vpc_id}")
-        
-        # Wait for all network interfaces (ENIs) to disappear
-        for i in range(18):
-            enis = ec2.describe_network_interfaces(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])['NetworkInterfaces']
-            if not enis:
-                print("All ENIs released.")
+        is_default = v.get('IsDefault', False)
+        if is_default:
+            continue
+            
+        # Match by name tag containing 'cloudpulse' OR CIDR block matching 10.0.0.0/16
+        has_tag = False
+        for tag in v.get('Tags', []):
+            if tag['Key'].lower() == 'name' and 'cloudpulse' in tag['Value'].lower():
+                has_tag = True
                 break
-            print(f"Waiting for {len(enis)} ENIs to be released by AWS... ({i*10}s)")
-            time.sleep(10)
+        has_cidr = (v['CidrBlock'] == '10.0.0.0/16')
+        
+        if has_tag or has_cidr:
+            print(f"Cleaning up network interfaces in matching VPC: {vpc_id} (CIDR: {v['CidrBlock']})")
             
-        # Delete subnets
-        subnets = ec2.describe_subnets(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])['Subnets']
-        for sub in subnets:
-            try:
-                ec2.delete_subnet(SubnetId=sub['SubnetId'])
-                print(f"Deleted Subnet: {sub['SubnetId']}")
-            except Exception as e:
-                print(f"Could not delete subnet {sub['SubnetId']}: {e}")
+            # Wait for all network interfaces (ENIs) to disappear
+            for i in range(18):
+                enis = ec2.describe_network_interfaces(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])['NetworkInterfaces']
+                if not enis:
+                    print(f"All ENIs in VPC {vpc_id} released.")
+                    break
+                print(f"Waiting for {len(enis)} ENIs to release in VPC {vpc_id}... ({i*10}s)")
+                time.sleep(10)
                 
-        # Delete Internet Gateway
-        igws = ec2.describe_internet_gateways(Filters=[{'Name': 'attachment.vpc-id', 'Values': [vpc_id]}])['InternetGateways']
-        for igw in igws:
-            try:
-                ec2.detach_internet_gateway(InternetGatewayId=igw['InternetGatewayId'], VpcId=vpc_id)
-                ec2.delete_internet_gateway(InternetGatewayId=igw['InternetGatewayId'])
-                print(f"Deleted IGW: {igw['InternetGatewayId']}")
-            except Exception as e:
-                print(f"Could not delete IGW {igw['InternetGatewayId']}: {e}")
-                
-        # Delete Security Groups
-        sgs = ec2.describe_security_groups(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])['SecurityGroups']
-        for sg in sgs:
-            if sg['GroupName'] != 'default':
+            # Force deletion of any remaining network interfaces
+            enis = ec2.describe_network_interfaces(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])['NetworkInterfaces']
+            for eni in enis:
                 try:
-                    ec2.delete_security_group(GroupId=sg['GroupId'])
-                    print(f"Deleted Security Group: {sg['GroupId']}")
-                except Exception as e:
-                    print(f"Could not delete Security Group {sg['GroupId']}: {e}")
+                    if eni.get('Attachment', {}).get('AttachmentId'):
+                        ec2.detach_network_interface(AttachmentId=eni['Attachment']['AttachmentId'], Force=True)
+                    ec2.delete_network_interface(NetworkInterfaceId=eni['NetworkInterfaceId'])
+                    print(f"Forced deletion of ENI: {eni['NetworkInterfaceId']}")
+                except Exception:
+                    pass
                     
-        # Delete VPC
-        try:
-            ec2.delete_vpc(VpcId=vpc_id)
-            print(f"Deleted VPC: {vpc_id}")
-        except Exception as e:
-            print(f"Could not delete VPC {vpc_id}: {e}")
-            
+            # Delete subnets
+            subnets = ec2.describe_subnets(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])['Subnets']
+            for sub in subnets:
+                try:
+                    ec2.delete_subnet(SubnetId=sub['SubnetId'])
+                    print(f"Deleted Subnet: {sub['SubnetId']}")
+                except Exception as e:
+                    pass
+                    
+            # Delete Internet Gateway
+            igws = ec2.describe_internet_gateways(Filters=[{'Name': 'attachment.vpc-id', 'Values': [vpc_id]}])['InternetGateways']
+            for igw in igws:
+                try:
+                    ec2.detach_internet_gateway(InternetGatewayId=igw['InternetGatewayId'], VpcId=vpc_id)
+                    ec2.delete_internet_gateway(InternetGatewayId=igw['InternetGatewayId'])
+                    print(f"Deleted IGW: {igw['InternetGatewayId']}")
+                except Exception as e:
+                    pass
+                    
+            # Delete Security Groups
+            sgs = ec2.describe_security_groups(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])['SecurityGroups']
+            for sg in sgs:
+                if sg['GroupName'] != 'default':
+                    try:
+                        ec2.delete_security_group(GroupId=sg['GroupId'])
+                        print(f"Deleted Security Group: {sg['GroupId']}")
+                    except Exception as e:
+                        pass
+                        
+            # Delete Route Tables (excluding main)
+            rts = ec2.describe_route_tables(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])['RouteTables']
+            for rt in rts:
+                is_main = False
+                for assoc in rt.get('Associations', []):
+                    if assoc.get('Main', False):
+                        is_main = True
+                        break
+                if not is_main:
+                    try:
+                        ec2.delete_route_table(RouteTableId=rt['RouteTableId'])
+                        print(f"Deleted Route Table: {rt['RouteTableId']}")
+                    except Exception as e:
+                        pass
+                        
+            # Delete VPC
+            try:
+                ec2.delete_vpc(VpcId=vpc_id)
+                print(f"Deleted VPC: {vpc_id}")
+            except Exception as e:
+                print(f"Could not delete VPC {vpc_id}: {e}")
+                
 except Exception as e:
     print(f"VPC cleanup error: {e}")
 
