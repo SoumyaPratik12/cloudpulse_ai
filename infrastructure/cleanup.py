@@ -43,7 +43,21 @@ try:
 except Exception as e:
     pass
 
-# 3. Wait for ALBs to disappear (releasing network interfaces)
+# 3. Delete DB Instances containing "cloudpulse"
+try:
+    dbs = rds.describe_db_instances()['DBInstances']
+    for db in dbs:
+        if 'cloudpulse' in db['DBInstanceIdentifier'].lower():
+            # Delete without final snapshot to speed up
+            try:
+                rds.delete_db_instance(DBInstanceIdentifier=db['DBInstanceIdentifier'], SkipFinalSnapshot=True)
+                print(f"Triggered deletion of DB Instance: {db['DBInstanceIdentifier']}")
+            except Exception as e:
+                pass
+except Exception as e:
+    pass
+
+# 4. Wait for ALBs to disappear (releasing network interfaces)
 print("Waiting for matching ALBs to delete...")
 for i in range(18):
     albs_left = []
@@ -58,7 +72,22 @@ for i in range(18):
     print(f"Still waiting for ALB deletion... ({i*10}s)")
     time.sleep(10)
 
-# 4. Delete Target Groups containing "cloudpulse"
+# 5. Wait for DB Instances to delete (releasing database subnet groups and network interfaces)
+print("Waiting for matching DB Instances to delete...")
+for i in range(30):
+    dbs_left = []
+    try:
+        dbs = rds.describe_db_instances()['DBInstances']
+        dbs_left = [d for d in dbs if 'cloudpulse' in d['DBInstanceIdentifier'].lower()]
+    except Exception:
+        pass
+    if not dbs_left:
+        print("All matching DB Instances are fully deleted.")
+        break
+    print(f"Still waiting for DB Instance deletion... ({i*10}s)")
+    time.sleep(10)
+
+# 6. Delete Target Groups containing "cloudpulse"
 try:
     tgs = elbv2.describe_target_groups()['TargetGroups']
     for tg in tgs:
@@ -68,7 +97,7 @@ try:
 except Exception as e:
     pass
 
-# 5. Delete DB Subnet Groups containing "cloudpulse"
+# 7. Delete DB Subnet Groups containing "cloudpulse"
 try:
     sngs = rds.describe_db_subnet_groups()['DBSubnetGroups']
     for sng in sngs:
@@ -78,13 +107,12 @@ try:
 except Exception as e:
     pass
 
-# 6. Delete IAM Roles & Policies containing "cloudpulse"
+# 8. Delete IAM Roles & Policies containing "cloudpulse"
 try:
     roles = iam.list_roles()['Roles']
     for role in roles:
         r_name = role['RoleName']
         if 'cloudpulse' in r_name.lower():
-            # Detach all attached policies
             policies = iam.list_attached_role_policies(RoleName=r_name)['AttachedPolicies']
             for p in policies:
                 iam.detach_role_policy(RoleName=r_name, PolicyArn=p['PolicyArn'])
@@ -102,7 +130,7 @@ try:
 except Exception as e:
     pass
 
-# 7. Scan and clean up ALL non-default VPCs matching cloudpulse or CIDR 10.0.0.0/16
+# 9. Clean up Network Interfaces and Delete matching VPCs
 try:
     vpcs = ec2.describe_vpcs()['Vpcs']
     for v in vpcs:
@@ -111,7 +139,6 @@ try:
         if is_default:
             continue
             
-        # Match by name tag containing 'cloudpulse' OR CIDR block matching 10.0.0.0/16
         has_tag = False
         for tag in v.get('Tags', []):
             if tag['Key'].lower() == 'name' and 'cloudpulse' in tag['Value'].lower():
@@ -141,7 +168,18 @@ try:
                     print(f"Forced deletion of ENI: {eni['NetworkInterfaceId']}")
                 except Exception:
                     pass
-                    
+            
+            # Revoke all security group rules to prevent dependency locks (including default security group)
+            sgs = ec2.describe_security_groups(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])['SecurityGroups']
+            for sg in sgs:
+                try:
+                    if sg['IpPermissions']:
+                        ec2.revoke_security_group_ingress(GroupId=sg['GroupId'], IpPermissions=sg['IpPermissions'])
+                    if sg['IpPermissionsEgress']:
+                        ec2.revoke_security_group_egress(GroupId=sg['GroupId'], IpPermissions=sg['IpPermissionsEgress'])
+                except Exception:
+                    pass
+
             # Delete subnets
             subnets = ec2.describe_subnets(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])['Subnets']
             for sub in subnets:
@@ -162,7 +200,6 @@ try:
                     pass
                     
             # Delete Security Groups
-            sgs = ec2.describe_security_groups(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])['SecurityGroups']
             for sg in sgs:
                 if sg['GroupName'] != 'default':
                     try:
