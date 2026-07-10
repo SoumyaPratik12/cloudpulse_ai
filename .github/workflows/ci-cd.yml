@@ -231,6 +231,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
+
       - name: Deploy to dev environment
         run: |
           echo "🚀 Deploying to development environment..."
@@ -256,6 +261,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
 
       - name: Deploy to production environment
         run: |
