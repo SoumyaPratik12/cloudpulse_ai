@@ -27,7 +27,7 @@ resource "aws_security_group" "rds_sg" {
 }
 
 resource "aws_db_instance" "db" {
-  identifier             = "${var.app_name}-${var.environment}-db"
+  identifier_prefix      = "${var.app_name}-${var.environment}-db-"
   allocated_storage      = 20
   engine                 = "postgres"
   engine_version         = "15"
