@@ -17,15 +17,19 @@ if original_eval_type:
                 if missing_name in _tried_names:
                     raise ne
                 _tried_names.add(missing_name)
-                setattr(builtins, missing_name, typing.Any)
+                
+                # Resolve using typing if available to maintain subscriptability (e.g., Literal, ClassVar)
+                resolved_val = getattr(typing, missing_name, typing.Any)
+                
+                setattr(builtins, missing_name, resolved_val)
                 if globalns is not None:
                     try:
-                        globalns[missing_name] = typing.Any
+                        globalns[missing_name] = resolved_val
                     except Exception:
                         pass
                 if localns is not None:
                     try:
-                        localns[missing_name] = typing.Any
+                        localns[missing_name] = resolved_val
                     except Exception:
                         pass
                 try:
