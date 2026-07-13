@@ -7,8 +7,19 @@ elbv2 = boto3.client('elbv2', region_name=region)
 iam = boto3.client('iam')
 rds = boto3.client('rds', region_name=region)
 ecs = boto3.client('ecs', region_name=region)
+logs = boto3.client('logs', region_name=region)
 
 print("Starting deep resource cleanup of cloudpulse resources...")
+
+# Delete CloudWatch Log Groups containing "cloudpulse"
+try:
+    log_groups = logs.describe_log_groups(logGroupNamePrefix='/ecs/cloudpulse')['logGroups']
+    for lg in log_groups:
+        lg_name = lg['logGroupName']
+        logs.delete_log_group(logGroupName=lg_name)
+        print(f"Deleted CloudWatch Log Group: {lg_name}")
+except Exception as e:
+    print(f"CloudWatch Log Group cleanup error: {e}")
 
 # 1. Scale down and delete ECS services in any cluster containing "cloudpulse"
 try:
