@@ -31,6 +31,11 @@ resource "aws_security_group" "ecs_tasks" {
   }
 }
 
+resource "aws_cloudwatch_log_group" "ecs" {
+  name              = "/ecs/${var.app_name}-${var.environment}"
+  retention_in_days = 7
+}
+
 resource "aws_ecs_task_definition" "backend" {
   family                   = "${var.app_name}-backend"
   network_mode             = "awsvpc"
@@ -61,6 +66,14 @@ resource "aws_ecs_task_definition" "backend" {
           value = var.environment
         }
       ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/${var.app_name}-${var.environment}"
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "backend"
+        }
+      }
     }
   ])
 }
@@ -84,6 +97,14 @@ resource "aws_ecs_task_definition" "frontend" {
           hostPort      = 80
         }
       ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/${var.app_name}-${var.environment}"
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "frontend"
+        }
+      }
     }
   ])
 }
