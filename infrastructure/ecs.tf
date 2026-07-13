@@ -149,3 +149,8 @@ resource "aws_ecs_service" "frontend" {
 
   depends_on = [aws_lb_listener.http]
 }
+
+resource "aws_cloudwatch_log_group" "ecs" {
+  name              = "/ecs/${var.app_name}-${var.environment}"
+  retention_in_days = 7
+}
