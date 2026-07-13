@@ -6,6 +6,7 @@ import re
 # Monkey-patch typing._eval_type to dynamically resolve missing type annotations (e.g., SQLAlchemy private types)
 original_eval_type = getattr(typing, "_eval_type", None)
 if original_eval_type:
+    _tried_names = set()
     def custom_eval_type(t, globalns, localns, recursive_guard=frozenset()):
         try:
             return original_eval_type(t, globalns, localns, recursive_guard)
@@ -13,8 +14,24 @@ if original_eval_type:
             match = re.search(r"name '([^']+)' is not defined", str(ne))
             if match:
                 missing_name = match.group(1)
+                if missing_name in _tried_names:
+                    raise ne
+                _tried_names.add(missing_name)
                 setattr(builtins, missing_name, typing.Any)
-                return custom_eval_type(t, globalns, localns, recursive_guard)
+                if globalns is not None:
+                    try:
+                        globalns[missing_name] = typing.Any
+                    except Exception:
+                        pass
+                if localns is not None:
+                    try:
+                        localns[missing_name] = typing.Any
+                    except Exception:
+                        pass
+                try:
+                    return custom_eval_type(t, globalns, localns, recursive_guard)
+                finally:
+                    _tried_names.discard(missing_name)
             raise
     typing._eval_type = custom_eval_type
 
