@@ -24,6 +24,11 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     }
   }, [isDarkMode])
 
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    window.location.href = '/login'
+  }
+
   return (
     <div className="flex h-screen bg-white dark:bg-neutral-900">
       {/* Sidebar */}
@@ -40,6 +45,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           isDarkMode={isDarkMode}
           onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
           onMenuToggle={(open) => setIsSidebarOpen(open)}
+          onLogout={handleLogout}
         />
 
         <main className="flex-1 overflow-y-auto">

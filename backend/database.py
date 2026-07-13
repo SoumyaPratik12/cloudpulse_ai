@@ -29,5 +29,50 @@ def get_db() -> Session:
 
 
 def init_db():
-    """Initialize database tables."""
+    """Initialize database tables and seed default admin user."""
     Base.metadata.create_all(bind=engine)
+
+    # Seed default user and organization if empty
+    from sqlalchemy.orm import sessionmaker
+    Session = sessionmaker(bind=engine)
+    db = Session()
+    try:
+        from models import User, Organization
+        from auth import get_password_hash
+
+        # Create default organization if none exists
+        org = db.query(Organization).first()
+        if not org:
+            org = Organization(
+                name="CloudPulse AI",
+                industry="Technology",
+                website="https://cloudpulse.ai",
+                default_aws_region="us-east-1",
+                subscription_tier="enterprise",
+                is_active=True
+            )
+            db.add(org)
+            db.commit()
+            db.refresh(org)
+            print("Database Seed: Created default organization 'CloudPulse AI'")
+
+        # Create default admin user if none exists
+        user = db.query(User).first()
+        if not user:
+            user = User(
+                email="admin@cloudpulse.ai",
+                username="admin",
+                full_name="CloudPulse Admin",
+                hashed_password=get_password_hash("Password123!"),
+                is_active=True,
+                is_admin=True,
+                organization_id=org.id
+            )
+            db.add(user)
+            db.commit()
+            print("Database Seed: Created default admin user 'admin@cloudpulse.ai' with password 'Password123!'")
+    except Exception as e:
+        print(f"Database Seed Error: {e}")
+        db.rollback()
+    finally:
+        db.close()

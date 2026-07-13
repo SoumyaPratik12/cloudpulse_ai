@@ -15,11 +15,24 @@ export const LoginPage: React.FC = () => {
     setError('')
 
     try {
-      // TODO: Replace with actual API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      console.log('Login:', { email, password })
-    } catch (err) {
-      setError('Invalid credentials')
+      const response = await fetch('/api/v1/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.detail || 'Invalid credentials')
+      }
+
+      const data = await response.json()
+      localStorage.setItem('token', data.access_token)
+      window.location.href = '/dashboard'
+    } catch (err: any) {
+      setError(err.message || 'Invalid credentials')
     } finally {
       setIsLoading(false)
     }
