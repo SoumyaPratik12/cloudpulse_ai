@@ -2,6 +2,8 @@ resource "aws_ecs_cluster" "cluster" {
   name = "${var.app_name}-${var.environment}-cluster"
 }
 
+data "aws_caller_identity" "current" {}
+
 resource "aws_security_group" "ecs_tasks" {
   name        = "${var.app_name}-${var.environment}-ecs-tasks-sg"
   description = "Allow inbound traffic to Fargate tasks from ALB"
@@ -41,7 +43,7 @@ resource "aws_ecs_task_definition" "backend" {
   container_definitions = jsonencode([
     {
       name      = "backend"
-      image     = var.backend_image
+      image     = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/cloudpulse-backend:latest"
       essential = true
       portMappings = [
         {
@@ -74,7 +76,7 @@ resource "aws_ecs_task_definition" "frontend" {
   container_definitions = jsonencode([
     {
       name      = "frontend"
-      image     = var.frontend_image
+      image     = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/cloudpulse-frontend:latest"
       essential = true
       portMappings = [
         {
