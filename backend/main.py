@@ -1,4 +1,5 @@
 """FastAPI application entry point."""
+from typing import Optional, List
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -13,7 +14,6 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan context manager."""
-from typing import Optional, List
     # Startup
     logger.info(f"Starting {settings.app_name} v{settings.app_version}")
     init_db()
