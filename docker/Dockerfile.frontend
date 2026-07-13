@@ -1,5 +1,6 @@
 # Frontend Dockerfile for CloudPulse AI
 FROM node:20-alpine AS builder
+LABEL org.opencontainers.image.source="https://github.com/SoumyaPratik12/cloudpulse_ai"
 
 WORKDIR /app
 
@@ -17,6 +18,7 @@ RUN npm run build
 
 # Production stage
 FROM node:20-alpine
+LABEL org.opencontainers.image.source="https://github.com/SoumyaPratik12/cloudpulse_ai"
 
 WORKDIR /app
 
