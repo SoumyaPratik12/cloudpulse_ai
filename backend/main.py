@@ -1,5 +1,9 @@
 """FastAPI application entry point."""
+import builtins
 from typing import Optional, List
+builtins.Optional = Optional
+builtins.List = List
+
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
