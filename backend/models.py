@@ -80,7 +80,7 @@ class Resource(Base):
     region = Column(String(50), nullable=False)
     state = Column(String(50), nullable=False, index=True)  # running, stopped, terminated
     tags = Column(Text, nullable=True)  # JSON string
-    metadata = Column(Text, nullable=True)  # JSON string with resource details
+    resource_metadata = Column("metadata", Text, nullable=True)  # JSON string with resource details
     monthly_cost = Column(Float, default=0.0)
     cpu_utilization = Column(Float, nullable=True)
     memory_utilization = Column(Float, nullable=True)
