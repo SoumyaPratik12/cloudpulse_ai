@@ -1,8 +1,10 @@
 """FastAPI application entry point."""
 import builtins
+import typing
 from typing import Optional, List
 builtins.Optional = Optional
 builtins.List = List
+builtins._SessionBind = typing.Any
 
 import logging
 from contextlib import asynccontextmanager
