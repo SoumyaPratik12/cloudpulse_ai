@@ -5,6 +5,14 @@ import re
 
 # Monkey-patch typing._eval_type to dynamically resolve missing type annotations (e.g., SQLAlchemy private types)
 class GenericFallback:
+    @classmethod
+    def __getitem__(cls, item):
+        return cls
+    @classmethod
+    def __call__(cls, *args, **kwargs):
+        return cls()
+    def __getattr__(self, name):
+        return self
     def __getitem__(self, item):
         return self
     def __call__(self, *args, **kwargs):
@@ -35,7 +43,7 @@ if original_eval_type:
                 # Resolve using typing if available to maintain subscriptability (e.g., Literal, ClassVar)
                 resolved_val = getattr(typing, missing_name, None)
                 if resolved_val is None:
-                    resolved_val = GenericFallback()
+                    resolved_val = GenericFallback
                 
                 setattr(builtins, missing_name, resolved_val)
                 if globalns is not None:
