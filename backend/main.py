@@ -1,11 +1,26 @@
 """FastAPI application entry point."""
 import builtins
 import typing
+import re
+
+# Monkey-patch typing._eval_type to dynamically resolve missing type annotations (e.g., SQLAlchemy private types)
+original_eval_type = getattr(typing, "_eval_type", None)
+if original_eval_type:
+    def custom_eval_type(t, globalns, localns, recursive_guard=frozenset()):
+        try:
+            return original_eval_type(t, globalns, localns, recursive_guard)
+        except NameError as ne:
+            match = re.search(r"name '([^']+)' is not defined", str(ne))
+            if match:
+                missing_name = match.group(1)
+                setattr(builtins, missing_name, typing.Any)
+                return custom_eval_type(t, globalns, localns, recursive_guard)
+            raise
+    typing._eval_type = custom_eval_type
+
 from typing import Optional, List
 builtins.Optional = Optional
 builtins.List = List
-builtins._SessionBind = typing.Any
-builtins._SessionBindKey = typing.Any
 
 import logging
 from contextlib import asynccontextmanager
