@@ -1,7 +1,7 @@
 """Application configuration settings."""
 import logging
-from typing import List
-from pydantic_settings import BaseSettings
+from typing import List, ClassVar
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
