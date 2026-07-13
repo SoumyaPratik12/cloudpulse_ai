@@ -1,6 +1,6 @@
 """Pydantic schemas for request/response validation."""
 from datetime import datetime
-from typing import Optional, List
+from typing import List
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -8,7 +8,7 @@ from pydantic import BaseModel, EmailStr, Field
 class UserBase(BaseModel):
     email: EmailStr
     username: str
-    full_name: Optional[str] = None
+    full_name: str | None = None
 
 
 class UserCreate(UserBase):
@@ -17,8 +17,8 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(BaseModel):
-    full_name: Optional[str] = None
-    email: Optional[EmailStr] = None
+    full_name: str | None = None
+    email: EmailStr | None = None
 
 
 class UserResponse(UserBase):
@@ -36,8 +36,8 @@ class UserResponse(UserBase):
 # Organization Schemas
 class OrganizationBase(BaseModel):
     name: str
-    industry: Optional[str] = None
-    website: Optional[str] = None
+    industry: str | None = None
+    website: str | None = None
     default_aws_region: str = "us-east-1"
 
 
@@ -72,7 +72,7 @@ class AWSCredentialResponse(BaseModel):
     organization_id: int
     regions: str
     is_active: bool
-    last_verified_at: Optional[datetime] = None
+    last_verified_at: datetime | None = None
     created_at: datetime
 
     class Config:
@@ -83,7 +83,7 @@ class AWSCredentialResponse(BaseModel):
 class ResourceBase(BaseModel):
     resource_id: str
     resource_type: str
-    name: Optional[str] = None
+    name: str | None = None
     region: str
     state: str
 
@@ -92,9 +92,9 @@ class ResourceResponse(ResourceBase):
     id: int
     organization_id: int
     monthly_cost: float
-    cpu_utilization: Optional[float] = None
-    memory_utilization: Optional[float] = None
-    last_scanned_at: Optional[datetime] = None
+    cpu_utilization: float | None = None
+    memory_utilization: float | None = None
+    last_scanned_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -108,13 +108,13 @@ class RecommendationBase(BaseModel):
     description: str
     recommendation_type: str  # cost, performance, security
     priority: str  # critical, high, medium, low
-    estimated_savings: Optional[float] = None
+    estimated_savings: float | None = None
 
 
 class RecommendationResponse(RecommendationBase):
     id: int
     organization_id: int
-    resource_id: Optional[int] = None
+    resource_id: int | None = None
     status: str
     created_at: datetime
     updated_at: datetime
@@ -136,17 +136,17 @@ class TokenResponse(BaseModel):
 
 
 class TokenData(BaseModel):
-    email: Optional[str] = None
-    user_id: Optional[int] = None
-    organization_id: Optional[int] = None
+    email: str | None = None
+    user_id: int | None = None
+    organization_id: int | None = None
 
 
 # Dashboard Schemas
 class DashboardCreate(BaseModel):
     name: str
     dashboard_type: str  # executive, devops, finance, custom
-    layout: Optional[str] = None
-    filters: Optional[str] = None
+    layout: str | None = None
+    filters: str | None = None
 
 
 class DashboardResponse(DashboardCreate):
@@ -170,4 +170,4 @@ class HealthResponse(BaseModel):
 
 class ErrorResponse(BaseModel):
     detail: str
-    error_code: Optional[str] = None
+    error_code: str | None = None
