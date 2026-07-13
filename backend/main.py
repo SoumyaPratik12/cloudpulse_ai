@@ -11,6 +11,12 @@ class GenericFallback:
         return self
     def __repr__(self):
         return "GenericFallback"
+    def __get_pydantic_core_schema__(*args, **kwargs):
+        try:
+            from pydantic_core import core_schema
+            return core_schema.any_schema()
+        except Exception:
+            return {"type": "any"}
 
 original_eval_type = getattr(typing, "_eval_type", None)
 if original_eval_type:
