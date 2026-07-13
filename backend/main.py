@@ -5,6 +5,7 @@ from typing import Optional, List
 builtins.Optional = Optional
 builtins.List = List
 builtins._SessionBind = typing.Any
+builtins._SessionBindKey = typing.Any
 
 import logging
 from contextlib import asynccontextmanager
