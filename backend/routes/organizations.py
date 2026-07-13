@@ -15,6 +15,7 @@ async def get_current_organization(
     db: Session = Depends(get_db),
 ):
     """Get current user's organization."""
+from typing import Optional, List
     org = db.query(Organization).filter(
         Organization.id == current_user.organization_id
     ).first()

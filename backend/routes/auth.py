@@ -19,6 +19,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     """Register a new user."""
+from typing import Optional, List
     # Check if user exists
     existing_user = db.query(User).filter(User.email == user_data.email).first()
     if existing_user:

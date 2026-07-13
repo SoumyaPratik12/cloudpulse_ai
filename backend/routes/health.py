@@ -11,6 +11,7 @@ router = APIRouter()
 @router.get("/health", response_model=HealthResponse)
 async def health_check(db: Session = Depends(get_db)):
     """Health check endpoint."""
+from typing import Optional, List
     try:
         # Check database
         db.execute("SELECT 1")
