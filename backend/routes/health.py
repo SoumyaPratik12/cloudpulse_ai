@@ -1,4 +1,5 @@
 """Health check endpoints."""
+from typing import Optional, List
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from config import settings
@@ -11,7 +12,6 @@ router = APIRouter()
 @router.get("/health", response_model=HealthResponse)
 async def health_check(db: Session = Depends(get_db)):
     """Health check endpoint."""
-from typing import Optional, List
     try:
         # Check database
         db.execute("SELECT 1")

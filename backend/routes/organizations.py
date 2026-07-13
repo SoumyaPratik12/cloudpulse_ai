@@ -1,4 +1,5 @@
 """Organization management endpoints."""
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import get_db
@@ -13,9 +14,9 @@ router = APIRouter(prefix="/organizations", tags=["organizations"])
 async def get_current_organization(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    # Get current user's organization.
 ):
     """Get current user's organization."""
-from typing import Optional, List
     org = db.query(Organization).filter(
         Organization.id == current_user.organization_id
     ).first()

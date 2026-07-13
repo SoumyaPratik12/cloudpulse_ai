@@ -1,4 +1,5 @@
 """User management endpoints."""
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import get_db
@@ -12,7 +13,6 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Get current user information."""
-from typing import Optional, List
     return current_user
 
 
