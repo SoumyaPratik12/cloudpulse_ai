@@ -245,7 +245,7 @@ jobs:
           if [ -d infrastructure ]; then
             cd infrastructure
             terraform init
-            terraform apply -auto-approve -var-file=dev.tfvars
+            terraform apply -auto-approve -var-file=dev.tfvars -var="image_tag=${{ github.sha }}"
           fi
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -285,7 +285,7 @@ jobs:
           if [ -d infrastructure ]; then
             cd infrastructure
             terraform init
-            terraform apply -auto-approve -var-file=prod.tfvars
+            terraform apply -auto-approve -var-file=prod.tfvars -var="image_tag=${{ github.sha }}"
           fi
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}

@@ -40,3 +40,9 @@ variable "frontend_image" {
   default     = "ghcr.io/soumyapratik12/cloudpulse_ai-frontend:latest"
   description = "React frontend Docker image tag"
 }
+
+variable "image_tag" {
+  type        = string
+  default     = "latest"
+  description = "Docker image tag to deploy (typically the git commit SHA)"
+}
