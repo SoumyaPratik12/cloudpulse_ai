@@ -38,7 +38,7 @@ class OrganizationBase(BaseModel):
     name: str
     industry: str | None = None
     website: str | None = None
-    default_aws_region: str = "us-east-1"
+    default_aws_region: str = "ap-south-1"
 
 
 class OrganizationCreate(OrganizationBase):
@@ -60,7 +60,7 @@ class OrganizationResponse(OrganizationBase):
 class AWSCredentialBase(BaseModel):
     access_key_id: str
     secret_access_key: str
-    regions: str = "us-east-1,us-west-2"
+    regions: str = "ap-south-1,us-east-1"
 
 
 class AWSCredentialCreate(AWSCredentialBase):

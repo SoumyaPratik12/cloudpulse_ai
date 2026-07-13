@@ -47,7 +47,7 @@ def init_db():
                 name="CloudPulse AI",
                 industry="Technology",
                 website="https://cloudpulse.ai",
-                default_aws_region="us-east-1",
+                default_aws_region="ap-south-1",
                 subscription_tier="enterprise",
                 is_active=True
             )

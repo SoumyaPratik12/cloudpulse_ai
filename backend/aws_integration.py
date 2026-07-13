@@ -15,7 +15,7 @@ class AWSClient:
         self,
         access_key_id: Optional[str] = None,
         secret_access_key: Optional[str] = None,
-        region: str = "us-east-1",
+        region: str = "ap-south-1",
     ):
         self.session = boto3.Session(
             aws_access_key_id=access_key_id or settings.aws_access_key_id,
@@ -157,7 +157,7 @@ class AWSClient:
 def get_aws_client(
     access_key_id: Optional[str] = None,
     secret_access_key: Optional[str] = None,
-    region: str = "us-east-1",
+    region: str = "ap-south-1",
 ) -> AWSClient:
     """Get AWS client instance."""
     return AWSClient(access_key_id, secret_access_key, region)

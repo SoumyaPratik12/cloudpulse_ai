@@ -14,7 +14,7 @@ export const SettingsPage: React.FC = () => {
     industry: 'technology',
     emailNotifications: true,
     slackNotifications: false,
-    awsRegion: 'us-east-1',
+    awsRegion: 'ap-south-1',
   })
 
   const [isSaving, setIsSaving] = React.useState(false)
@@ -59,6 +59,7 @@ export const SettingsPage: React.FC = () => {
               label="Default AWS Region"
               value={formData.awsRegion}
               options={[
+                { value: 'ap-south-1', label: 'Asia Pacific (Mumbai)' },
                 { value: 'us-east-1', label: 'US East (N. Virginia)' },
                 { value: 'us-west-2', label: 'US West (Oregon)' },
                 { value: 'eu-west-1', label: 'EU (Ireland)' },

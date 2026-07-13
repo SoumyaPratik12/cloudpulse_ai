@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 7
 
     # AWS
-    aws_region: str = "us-east-1"
+    aws_region: str = "ap-south-1"
     aws_access_key_id: str = ""
     aws_secret_access_key: str = ""
 

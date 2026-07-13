@@ -1,7 +1,7 @@
 import boto3
 import time
 
-region = "us-east-1"
+region = "ap-south-1"
 ec2 = boto3.client('ec2', region_name=region)
 elbv2 = boto3.client('elbv2', region_name=region)
 iam = boto3.client('iam')

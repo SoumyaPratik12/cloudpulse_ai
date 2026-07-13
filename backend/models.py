@@ -36,7 +36,7 @@ class Organization(Base):
     name = Column(String(255), nullable=False, index=True)
     industry = Column(String(100), nullable=True)
     website = Column(String(500), nullable=True)
-    default_aws_region = Column(String(50), default="us-east-1")
+    default_aws_region = Column(String(50), default="ap-south-1")
     subscription_tier = Column(String(50), default="starter")
     is_active = Column(Boolean, default=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -58,7 +58,7 @@ class AWSCredential(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     access_key_id = Column(String(255), nullable=False)
     secret_access_key = Column(String(255), nullable=False)  # Should be encrypted
-    regions = Column(String(1000), default="us-east-1,us-west-2")  # Comma-separated
+    regions = Column(String(1000), default="ap-south-1,us-east-1")  # Comma-separated
     is_active = Column(Boolean, default=True)
     last_verified_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
