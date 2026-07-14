@@ -170,7 +170,7 @@ export const CatalogPage: React.FC = () => {
                       ) : isProvisioning ? (
                         <Badge variant="warning">Provisioning {progress}%</Badge>
                       ) : (
-                        <Badge variant="neutral">Available</Badge>
+                        <Badge variant="default">Available</Badge>
                       )}
                     </div>
                   </div>

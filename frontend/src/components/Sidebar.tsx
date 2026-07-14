@@ -11,7 +11,9 @@ import {
   DollarSign, 
   ChevronDown,
   Lock,
-  ShieldAlert
+  ShieldAlert,
+  Cloud,
+  HelpCircle
 } from 'lucide-react'
 
 interface NavItem {

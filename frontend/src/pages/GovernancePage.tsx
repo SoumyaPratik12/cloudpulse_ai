@@ -3,7 +3,6 @@ import { DashboardLayout } from '../components/DashboardLayout'
 import { StatCard } from '../components/StatCard'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
-import { Badge } from '../components/Badge'
 import { 
   AreaChart, 
   Area, 
@@ -13,8 +12,6 @@ import {
   Tooltip, 
   Legend, 
   ResponsiveContainer,
-  BarChart,
-  Bar,
   PieChart,
   Pie,
   Cell

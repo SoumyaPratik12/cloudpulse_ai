@@ -29,7 +29,6 @@ import {
   Cpu, 
   Database, 
   Zap, 
-  HardDrive,
   TrendingDown,
   TrendingUp,
   AlertTriangle,
