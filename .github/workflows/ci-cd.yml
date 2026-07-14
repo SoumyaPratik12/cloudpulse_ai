@@ -260,7 +260,7 @@ jobs:
     
     environment:
       name: production
-      url: http://cloudpulse-prod-alb-703445417.ap-south-1.elb.amazonaws.com
+      url: ${{ steps.deploy.outputs.alb_dns_name }}
 
     steps:
       - uses: actions/checkout@v4
@@ -280,12 +280,15 @@ jobs:
           AWS_DEFAULT_REGION: ap-south-1
 
       - name: Deploy to production environment
+        id: deploy
         run: |
           echo "🚀 Deploying to production environment..."
           if [ -d infrastructure ]; then
             cd infrastructure
             terraform init
             terraform apply -auto-approve -var-file=prod.tfvars -var="image_tag=${{ github.sha }}"
+            ALB_DNS=$(terraform output -raw alb_dns_name)
+            echo "alb_dns_name=http://$ALB_DNS" >> $GITHUB_OUTPUT
           fi
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
