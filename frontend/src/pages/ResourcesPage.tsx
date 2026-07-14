@@ -4,56 +4,77 @@ import { DataTable } from '../components/DataTable'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
 import { Alert } from '../components/Alert'
-import { Plus } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 
 export const ResourcesPage: React.FC = () => {
-  const resources = [
-    {
-      id: '1',
-      name: 'web-server-prod',
-      type: 'EC2',
-      state: 'running',
-      cost: '$450/mo',
-      cpu: '45%',
-      memory: '62%',
-    },
-    {
-      id: '2',
-      name: 'database-primary',
-      type: 'RDS',
-      state: 'running',
-      cost: '$680/mo',
-      cpu: '28%',
-      memory: '71%',
-    },
-    {
-      id: '3',
-      name: 'backup-storage',
-      type: 'S3',
-      state: 'running',
-      cost: '$120/mo',
-      cpu: '-',
-      memory: '-',
-    },
-    {
-      id: '4',
-      name: 'dev-instance',
-      type: 'EC2',
-      state: 'stopped',
-      cost: '$0/mo',
-      cpu: '-',
-      memory: '-',
-    },
-  ]
+  const [resources, setResources] = React.useState<any[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [syncing, setSyncing] = React.useState(false)
+  const [error, setError] = React.useState('')
+  const [message, setMessage] = React.useState('')
+
+  const fetchResources = async () => {
+    const token = localStorage.getItem('token')
+    try {
+      const res = await fetch('/api/v1/resources/', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (!res.ok) throw new Error('Failed to fetch resources')
+      const body = await res.json()
+      setResources(body)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  React.useEffect(() => {
+    fetchResources()
+  }, [])
+
+  const handleSyncResources = async () => {
+    const token = localStorage.getItem('token')
+    setSyncing(true)
+    setError('')
+    setMessage('')
+    try {
+      const res = await fetch('/api/v1/resources/sync', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (!res.ok) throw new Error('Failed to sync resources from AWS')
+      const body = await res.json()
+      setMessage(body.message || 'AWS resources sync triggered successfully!')
+      fetchResources()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const columns = [
-    { key: 'name', label: 'Resource Name' },
-    { key: 'type', label: 'Type' },
+    { key: 'resource_id', label: 'Resource ID' },
+    { key: 'name', label: 'Name' },
+    { key: 'resource_type', label: 'Type' },
     { key: 'state', label: 'State' },
-    { key: 'cpu', label: 'CPU' },
-    { key: 'memory', label: 'Memory' },
-    { key: 'cost', label: 'Monthly Cost' },
+    { key: 'cpu_utilization', label: 'CPU' },
+    { key: 'monthly_cost', label: 'Monthly Cost' },
   ]
+
+  const rows = resources.map(r => ({
+    id: String(r.id),
+    resource_id: r.resource_id,
+    name: r.name || '-',
+    resource_type: r.resource_type.toUpperCase(),
+    state: r.state,
+    cpu_utilization: r.cpu_utilization !== null ? `${r.cpu_utilization.toFixed(1)}%` : '-',
+    monthly_cost: `$${r.monthly_cost.toFixed(2)}/mo`
+  }))
+
+  const runningCount = resources.filter(r => r.state === 'running' || r.state === 'available' || r.state === 'active').length
+  const stoppedCount = resources.filter(r => r.state === 'stopped').length
 
   return (
     <DashboardLayout activeNavItem="resources">
@@ -63,17 +84,38 @@ export const ResourcesPage: React.FC = () => {
             <h1 className="text-h1 font-bold text-neutral-900 dark:text-white mb-2">Resources</h1>
             <p className="text-body-md text-neutral-600 dark:text-neutral-400">Manage your AWS infrastructure</p>
           </div>
-          <Button variant="primary" icon={<Plus className="h-4 w-4" />}>
-            Add Resource
+          <Button 
+            variant="primary" 
+            isLoading={syncing}
+            icon={<RefreshCw className="h-4 w-4" />}
+            onClick={handleSyncResources}
+          >
+            Sync AWS Resources
           </Button>
         </div>
 
+        {error && (
+          <Alert type="error" title="Synchronization Error" dismissible>
+            {error}
+          </Alert>
+        )}
+
+        {message && (
+          <Alert type="success" title="Success" dismissible>
+            {message}
+          </Alert>
+        )}
+
         <Alert type="info">
-          Total resources: <strong>4</strong> | Running: <strong>3</strong> | Stopped: <strong>1</strong>
+          Total resources: <strong>{resources.length}</strong> | Active: <strong>{runningCount}</strong> | Stopped: <strong>{stoppedCount}</strong>
         </Alert>
 
         <Card header={<h2 className="text-h3 font-semibold">All Resources</h2>}>
-          <DataTable columns={columns} rows={resources} />
+          {loading ? (
+            <div className="p-lg text-center text-neutral-500">Loading resources list...</div>
+          ) : (
+            <DataTable columns={columns} rows={rows} />
+          )}
         </Card>
       </div>
     </DashboardLayout>
