@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { 
   Cloud, 
   LayoutDashboard, 
-  Layers, 
+  Grid, 
   Cpu, 
   HardDrive, 
   Database, 
@@ -12,7 +12,9 @@ import {
   DollarSign, 
   Settings, 
   HelpCircle, 
-  ChevronDown 
+  ChevronDown,
+  Lock,
+  ShieldAlert
 } from 'lucide-react'
 
 interface NavItem {
@@ -33,19 +35,16 @@ interface SidebarProps {
 
 const mainNavigationItems: NavItem[] = [
   {
+    id: 'catalog',
+    label: 'Module Catalog',
+    icon: <Grid className="h-5 w-5" />,
+    href: '/',
+  },
+  {
     id: 'dashboard',
     label: 'Dashboard',
     icon: <LayoutDashboard className="h-5 w-5" />,
     href: '/dashboard',
-  },
-  {
-    id: 'saas-apps',
-    label: 'SaaS Applications',
-    icon: <Layers className="h-5 w-5" />,
-    subitems: [
-      { id: 'app-ecommerce', label: 'E-commerce Platform', href: '/resources' },
-      { id: 'app-hr', label: 'HR Portal', href: '/resources' },
-    ],
   },
 ]
 
@@ -54,43 +53,43 @@ const serviceNavigationItems: NavItem[] = [
     id: 'compute',
     label: 'Compute',
     icon: <Cpu className="h-5 w-5" />,
-    href: '/resources?type=ec2',
+    href: '/resources?type=compute',
   },
   {
     id: 'storage',
     label: 'Storage',
     icon: <HardDrive className="h-5 w-5" />,
-    href: '/resources?type=s3',
+    href: '/resources?type=storage',
   },
   {
     id: 'database',
     label: 'Database',
     icon: <Database className="h-5 w-5" />,
-    href: '/resources?type=rds',
+    href: '/resources?type=database',
   },
   {
     id: 'networking',
     label: 'Networking',
     icon: <Network className="h-5 w-5" />,
-    href: '/resources?type=vpc',
+    href: '/resources?type=networking',
   },
   {
     id: 'analytics',
     label: 'Analytics',
     icon: <BarChart3 className="h-5 w-5" />,
-    href: '/dashboard',
+    href: '/resources?type=analytics',
   },
   {
     id: 'billing',
-    label: 'Billing',
+    label: 'Billing & Cost',
     icon: <DollarSign className="h-5 w-5" />,
-    href: '/cost-analysis',
+    href: '/governance',
   },
   {
-    id: 'settings',
-    label: 'Settings',
-    icon: <Settings className="h-5 w-5" />,
-    href: '/settings',
+    id: 'security',
+    label: 'Team & Security',
+    icon: <ShieldAlert className="h-5 w-5" />,
+    href: '/governance',
   },
 ]
 
@@ -102,6 +101,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const navigate = useNavigate()
   const [expandedItems, setExpandedItems] = React.useState<Set<string>>(new Set(['saas-apps']))
+  const [provisioned, setProvisioned] = React.useState<string[]>([])
+
+  const loadProvisioned = () => {
+    const saved = localStorage.getItem('provisioned_modules')
+    if (saved) {
+      setProvisioned(JSON.parse(saved))
+    } else {
+      setProvisioned([])
+    }
+  }
+
+  React.useEffect(() => {
+    loadProvisioned()
+    window.addEventListener('provisioned_modules_changed', loadProvisioned)
+    return () => {
+      window.removeEventListener('provisioned_modules_changed', loadProvisioned)
+    }
+  }, [])
 
   const toggleExpanded = (itemId: string) => {
     const newExpanded = new Set(expandedItems)
@@ -114,10 +131,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }
 
   const renderItemButton = (item: NavItem) => {
+    const isService = serviceNavigationItems.some(s => s.id === item.id)
+    const isProvisioned = !isService || provisioned.includes(item.id)
     const isActive = activeItem === item.id || (item.subitems && item.subitems.some(sub => activeItem === sub.id))
+
     return (
       <button
         onClick={() => {
+          if (!isProvisioned) return // Disable navigation click for locked items
           onNavigate?.(item.id)
           if (item.href) {
             navigate(item.href)
@@ -126,16 +147,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
             toggleExpanded(item.id)
           }
         }}
+        disabled={!isProvisioned}
         className={`
           w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-body-md transition-all duration-200
-          ${isActive
-            ? 'bg-sky-600 text-white font-semibold shadow-md shadow-sky-600/20'
-            : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+          ${!isProvisioned
+            ? 'opacity-40 cursor-not-allowed text-slate-500'
+            : isActive
+              ? 'bg-sky-600 text-white font-semibold shadow-md shadow-sky-600/20'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
           }
         `}
       >
-        {item.icon}
+        {!isProvisioned ? <Lock className="h-4 w-4 text-slate-500" /> : item.icon}
         <span className="flex-1 text-left">{item.label}</span>
+        {isService && isProvisioned && (
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        )}
         {item.subitems && (
           <ChevronDown
             className={`h-4 w-4 transition-transform duration-200 ${expandedItems.has(item.id) ? 'rotate-180' : ''}`}

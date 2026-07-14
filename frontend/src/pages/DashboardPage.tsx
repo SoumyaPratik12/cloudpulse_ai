@@ -1,9 +1,11 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 import { DashboardLayout } from '../components/DashboardLayout'
 import { StatCard } from '../components/StatCard'
 import { Alert } from '../components/Alert'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
+import { TopologyMap } from '../components/TopologyMap'
 import { 
   AreaChart, 
   Area, 
@@ -30,7 +32,10 @@ import {
   HardDrive,
   TrendingDown,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  Sparkles,
+  Grid,
+  ArrowRight
 } from 'lucide-react'
 
 export const DashboardPage: React.FC = () => {
@@ -39,6 +44,21 @@ export const DashboardPage: React.FC = () => {
   const [error, setError] = React.useState('')
   const [dashboardType, setDashboardType] = React.useState<'executive' | 'devops' | 'finance'>('executive')
   const [activeTab, setActiveTab] = React.useState<'1d' | '7d' | '30d'>('1d')
+  const [provisioned, setProvisioned] = React.useState<string[]>([])
+
+  // Load provisioned modules
+  const loadProvisioned = () => {
+    const saved = localStorage.getItem('provisioned_modules')
+    if (saved) {
+      setProvisioned(JSON.parse(saved))
+    } else {
+      setProvisioned([])
+    }
+  }
+
+  React.useEffect(() => {
+    loadProvisioned()
+  }, [])
 
   const fetchDashboardData = async () => {
     const token = localStorage.getItem('token')
@@ -74,7 +94,35 @@ export const DashboardPage: React.FC = () => {
     return (
       <DashboardLayout activeNavItem="dashboard">
         <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-body-lg text-neutral-600 dark:text-neutral-400">Loading {dashboardType.toUpperCase()} telemetry...</div>
+          <div className="text-body-lg text-neutral-600 dark:text-neutral-400">Loading operational telemetry...</div>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  const isComputeActive = provisioned.includes('compute')
+  const isStorageActive = provisioned.includes('storage')
+  const isDatabaseActive = provisioned.includes('database')
+  const isAnalyticsActive = provisioned.includes('analytics')
+  const isBillingActive = provisioned.includes('billing')
+
+  // If no services have been provisioned yet
+  if (provisioned.length === 0) {
+    return (
+      <DashboardLayout activeNavItem="dashboard">
+        <div className="flex flex-col items-center justify-center min-h-[480px] p-lg max-w-xl mx-auto text-center space-y-md">
+          <div className="p-4 bg-sky-50 dark:bg-sky-950/20 text-sky-600 rounded-full animate-bounce">
+            <Grid className="h-10 w-10" />
+          </div>
+          <h1 className="text-2xl font-extrabold text-neutral-900 dark:text-white">Provision Cloud Modules</h1>
+          <p className="text-body-md text-neutral-500">
+            Welcome to CloudPulse AI. To get started, please visit the Module Catalog and provision core infrastructure services (Compute, Storage, Database, etc.) to activate telemetry.
+          </p>
+          <Link to="/">
+            <Button variant="primary" icon={<ArrowRight className="h-4 w-4" />}>
+              Open Module Catalog
+            </Button>
+          </Link>
         </div>
       </DashboardLayout>
     )
@@ -89,7 +137,9 @@ export const DashboardPage: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-md border-b border-slate-200 dark:border-neutral-700 pb-md">
           <div>
             <h1 className="text-2xl font-bold text-neutral-900 dark:text-white capitalize">{dashboardType} Dashboard</h1>
-            <p className="text-body-md text-neutral-600 dark:text-neutral-400">Real-time cloud infrastructure intelligence</p>
+            <p className="text-body-md text-neutral-600 dark:text-neutral-400 font-semibold flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" /> CloudPulse AI Engine Active
+            </p>
           </div>
           <div className="flex bg-slate-100 dark:bg-neutral-800 rounded-xl p-1 text-sm border border-slate-200/60 dark:border-neutral-700">
             {(['executive', 'devops', 'finance'] as const).map(type => (
@@ -104,37 +154,70 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {error && (
-          <Alert type="error" title="Dashboard Error" dismissible>
-            {error}
-          </Alert>
+        {error && <Alert type="error" title="Dashboard Error" dismissible>{error}</Alert>}
+
+        {/* AI INSIGHTS PANEL (Unlocked if Analytics is active) */}
+        {isAnalyticsActive && (
+          <Card 
+            className="bg-gradient-to-r from-indigo-50/60 to-purple-50/60 dark:from-neutral-800/40 dark:to-neutral-900/40 border border-indigo-100 dark:border-neutral-700 rounded-2xl p-sm"
+            header={
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-purple-600 animate-pulse" />
+                <h3 className="font-bold text-neutral-900 dark:text-white text-h4">AI Operations Insights</h3>
+              </div>
+            }
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-md mt-md">
+              <div className="p-md bg-white dark:bg-neutral-800 rounded-xl border border-slate-100 dark:border-neutral-700/60 flex items-start gap-3 shadow-sm">
+                <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
+                <div>
+                  <h4 className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">High CPU Load Alert</h4>
+                  <p className="text-[11px] text-slate-500 mt-1">`cloudpulse-worker-node-02` hit 85% utilization peak. Scale recommendations triggered.</p>
+                </div>
+              </div>
+              <div className="p-md bg-white dark:bg-neutral-800 rounded-xl border border-slate-100 dark:border-neutral-700/60 flex items-start gap-3 shadow-sm">
+                <TrendingDown className="h-5 w-5 text-emerald-500 mt-0.5" />
+                <div>
+                  <h4 className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Rightsizing Opportunities</h4>
+                  <p className="text-[11px] text-slate-500 mt-1">Found 2 idle EC2 compute instances. Changing type to t3.nano saves $15.00/mo.</p>
+                </div>
+              </div>
+              <div className="p-md bg-white dark:bg-neutral-800 rounded-xl border border-slate-100 dark:border-neutral-700/60 flex items-start gap-3 shadow-sm">
+                <CheckCircle2 className="h-5 w-5 text-indigo-500 mt-0.5" />
+                <div>
+                  <h4 className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Storage Cleanup Tip</h4>
+                  <p className="text-[11px] text-slate-500 mt-1">S3 archive bucket lifecycle can be shifted to Glacier Deep Archive to save 40%.</p>
+                </div>
+              </div>
+            </div>
+          </Card>
         )}
 
-        {/* 1. EXECUTIVE DASHBOARD VIEW */}
+        {/* EXECUTIVE DASHBOARD VIEW */}
         {dashboardType === 'executive' && (
           <>
-            {/* Stats */}
+            {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md">
               <StatCard
                 label="SaaS App Instances"
-                value={`${data?.resources_by_type ? Object.values(data.resources_by_type).reduce((a: any, b: any) => a + b, 0) : 15} Active`}
-                trendLabel="Status: Healthy"
+                value={isComputeActive ? `${data?.resources_by_type ? Object.values(data.resources_by_type).reduce((a: any, b: any) => a + b, 0) : 15} Active` : 'Locked'}
+                trendLabel={isComputeActive ? "Status: Healthy" : "Provision Compute module"}
                 icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
                 backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
               />
               <StatCard
-                label="User Activity"
-                value="14.2K Active Users"
-                trend={8.5}
-                trendLabel="today"
+                label="Active Systems"
+                value={isComputeActive ? "14.2K Users" : 'Locked'}
+                trend={isComputeActive ? 8.5 : undefined}
+                trendLabel={isComputeActive ? "today" : "Access metrics"}
                 icon={<Users className="h-5 w-5 text-sky-600" />}
                 backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
               />
               <StatCard
-                label="Monthly Revenue"
-                value={`$${(data?.monthly_cost || 67.80).toFixed(2)}`}
-                trend={-8}
-                trendLabel="vs last month"
+                label="Monthly Spend"
+                value={isBillingActive ? `$${(data?.monthly_cost || 67.80).toFixed(2)}` : 'Locked'}
+                trend={isBillingActive ? -8 : undefined}
+                trendLabel={isBillingActive ? "vs last month" : "Provision Billing module"}
                 icon={<DollarSign className="h-5 w-5 text-emerald-600" />}
                 backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
               />
@@ -147,7 +230,7 @@ export const DashboardPage: React.FC = () => {
               />
             </div>
 
-            {/* Charts */}
+            {/* Charts & Graphs */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-md">
               <Card 
                 className="lg:col-span-2 rounded-xl"
@@ -194,7 +277,7 @@ export const DashboardPage: React.FC = () => {
                       <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
                       <YAxis yAxisId="left" stroke="#94a3b8" fontSize={11} />
                       <YAxis yAxisId="right" orientation="right" stroke="#94a3b8" fontSize={11} />
-                      <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #f1f5f9', borderRadius: 8 }} />
+                      <Tooltip />
                       <Legend verticalAlign="top" height={36} iconType="circle" />
                       <Area yAxisId="left" type="monotone" dataKey="latency" stroke="#0284c7" strokeWidth={2} fillOpacity={1} fill="url(#colorLatency)" name="Request Latency (ms)" />
                       <Area yAxisId="right" type="monotone" dataKey="calls" stroke="#0d9488" strokeWidth={2} fillOpacity={1} fill="url(#colorCalls)" name="API Calls" />
@@ -203,172 +286,193 @@ export const DashboardPage: React.FC = () => {
                 </div>
               </Card>
 
-              <Card className="rounded-xl" header={<h2 className="text-h4 font-bold text-neutral-800 dark:text-white">Cost Distribution</h2>}>
-                <div className="h-[200px] w-full relative mt-md">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={Object.entries(data?.resources_by_type || {}).map(([key, val]) => ({ name: key.toUpperCase(), value: Number(val) }))}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={55}
-                        outerRadius={80}
-                        paddingAngle={3}
-                      >
-                        {Object.entries(data?.resources_by_type || {}).map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="flex flex-wrap justify-center gap-x-md gap-y-sm mt-md">
-                  {Object.entries(data?.resources_by_type || {}).map(([key, val]: any, index) => (
-                    <div key={key} className="flex items-center gap-sm text-xs">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                      <span className="text-slate-500 font-medium">{key.toUpperCase()} ({val})</span>
+              <Card className="rounded-xl" header={<h2 className="text-h4 font-bold text-neutral-800 dark:text-white">Active Cost Allocation</h2>}>
+                {isStorageActive ? (
+                  <>
+                    <div className="h-[200px] w-full relative mt-md">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={Object.entries(data?.resources_by_type || {}).map(([key, val]) => ({ name: key.toUpperCase(), value: Number(val) }))}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={55}
+                            outerRadius={80}
+                            paddingAngle={3}
+                          >
+                            {Object.entries(data?.resources_by_type || {}).map((_, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
                     </div>
-                  ))}
-                </div>
+                    <div className="flex flex-wrap justify-center gap-x-md gap-y-sm mt-md">
+                      {Object.entries(data?.resources_by_type || {}).map(([key, val]: any, index) => (
+                        <div key={key} className="flex items-center gap-sm text-xs">
+                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                          <span className="text-slate-500 font-medium">{key.toUpperCase()} ({val})</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="p-lg text-center text-slate-400 text-body-sm">
+                    S3 Storage module is unprovisioned. Provision S3 to see resource allocations.
+                  </div>
+                )}
               </Card>
             </div>
           </>
         )}
 
-        {/* 2. DEVOPS DASHBOARD VIEW */}
+        {/* DEVOPS DASHBOARD VIEW */}
         {dashboardType === 'devops' && (
           <>
-            {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md">
               <StatCard
-                label="Active Systems"
-                value={`${data?.resources_by_state?.active || data?.resources_by_state?.running || 0} nodes`}
-                trendLabel="Resource instances online"
+                label="Running Instances"
+                value={isComputeActive ? `${data?.resources_by_state?.active || data?.resources_by_state?.running || 0} nodes` : 'Locked'}
+                trendLabel="EC2 Active Instances"
                 icon={<Cpu className="h-5 w-5 text-emerald-600" />}
                 backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
               />
               <StatCard
-                label="Stopped Systems"
-                value={`${data?.resources_by_state?.stopped || 0} nodes`}
-                trendLabel="Offline resource instances"
+                label="Stopped Instances"
+                value={isComputeActive ? `${data?.resources_by_state?.stopped || 0} nodes` : 'Locked'}
+                trendLabel="EC2 Offline Instances"
                 icon={<Zap className="h-5 w-5 text-amber-500" />}
                 backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
               />
               <StatCard
-                label="High CPU Alarms (>80%)"
-                value={`${data?.high_utilization_count || 0} nodes`}
-                trend={data?.high_utilization_count > 0 ? 100 : 0}
-                trendLabel="Require rightsizing attention"
+                label="High CPU Alarms"
+                value={isComputeActive ? `${data?.high_utilization_count || 0} nodes` : 'Locked'}
+                trendLabel="Utilization thresholds"
                 icon={<AlertTriangle className="h-5 w-5 text-amber-600" />}
                 backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
               />
               <StatCard
-                label="SRE Status"
-                value="Optimal"
-                trendLabel="No ongoing priority 1 outages"
-                icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+                label="Active Databases"
+                value={isDatabaseActive ? "2 DBs" : 'Locked'}
+                trendLabel="RDS Instances Status"
+                icon={<Database className="h-5 w-5 text-purple-600" />}
                 backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
               />
             </div>
 
-            {/* Charts */}
+            {/* Performance charts and Topology Map */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-md">
-              <Card className="lg:col-span-2 rounded-xl" header={<h2 className="text-h4 font-bold text-neutral-800 dark:text-white">Active Node CPU Telemetry (Last 24h)</h2>}>
-                <div className="h-[280px] w-full mt-md">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={[
-                      { name: '00:00', cpu: 12, memory: 40 },
-                      { name: '04:00', cpu: 18, memory: 42 },
-                      { name: '08:00', cpu: 45, memory: 55 },
-                      { name: '12:00', cpu: 60, memory: 60 },
-                      { name: '16:00', cpu: 85, memory: 72 }, // Utilization Peak
-                      { name: '20:00', cpu: 30, memory: 50 },
-                    ]}>
-                      <defs>
-                        <linearGradient id="colorCpu" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.15}/>
-                          <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
-                      <YAxis stroke="#94a3b8" fontSize={11} />
-                      <Tooltip />
-                      <Legend />
-                      <Area type="monotone" dataKey="cpu" stroke="#f59e0b" strokeWidth={2} fill="url(#colorCpu)" name="Avg CPU Utilization (%)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
+              {/* Analytics correlation graph */}
+              <Card className="lg:col-span-2 rounded-xl" header={<h2 className="text-h4 font-bold text-neutral-800 dark:text-white">Performance Correlation (Latency vs DB Queries)</h2>}>
+                {isAnalyticsActive ? (
+                  <div className="h-[280px] w-full mt-md">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={[
+                        { name: '00:00', latency: 45, queries: 200 },
+                        { name: '04:00', latency: 75, queries: 350 },
+                        { name: '08:00', latency: 125, queries: 600 },
+                        { name: '12:00', latency: 110, queries: 550 },
+                        { name: '16:00', latency: 220, queries: 950 },
+                        { name: '20:00', latency: 85, queries: 300 },
+                      ]}>
+                        <defs>
+                          <linearGradient id="colorLatency" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#0284c7" stopOpacity={0.15}/>
+                            <stop offset="95%" stopColor="#0284c7" stopOpacity={0}/>
+                          </linearGradient>
+                          <linearGradient id="colorQueries" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.15}/>
+                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
+                        <YAxis yAxisId="left" stroke="#94a3b8" fontSize={11} />
+                        <YAxis yAxisId="right" orientation="right" stroke="#94a3b8" fontSize={11} />
+                        <Tooltip />
+                        <Legend />
+                        <Area yAxisId="left" type="monotone" dataKey="latency" stroke="#0284c7" strokeWidth={2} fill="url(#colorLatency)" name="Latency (ms)" />
+                        <Area yAxisId="right" type="monotone" dataKey="queries" stroke="#8b5cf6" strokeWidth={2} fill="url(#colorQueries)" name="Queries / Sec" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="p-lg text-center text-slate-400 text-body-sm min-h-[280px] flex items-center justify-center">
+                    Provision Analytics module to unlock active Latency and Query correlation telemetry.
+                  </div>
+                )}
               </Card>
 
-              <Card className="rounded-xl" header={<h2 className="text-h4 font-bold text-neutral-800 dark:text-white">State Distribution</h2>}>
-                <div className="h-[200px] w-full relative mt-md">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={Object.entries(data?.resources_by_state || {}).map(([key, val]) => ({ name: key.toUpperCase(), value: Number(val) }))}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={55}
-                        outerRadius={80}
-                      >
-                        {Object.entries(data?.resources_by_state || {}).map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="flex flex-wrap justify-center gap-x-md gap-y-sm mt-md">
-                  {Object.entries(data?.resources_by_state || {}).map(([key, val]: any, index) => (
-                    <div key={key} className="flex items-center gap-sm text-xs">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                      <span className="text-slate-500 font-medium">{key.toUpperCase()} ({val})</span>
-                    </div>
-                  ))}
-                </div>
+              {/* Topology Map */}
+              <Card className="rounded-xl" header={<h2 className="text-h4 font-bold text-neutral-800 dark:text-white">CloudPulse Topology Map</h2>}>
+                <TopologyMap />
               </Card>
             </div>
+
+            {/* Database Monitoring telemetry */}
+            {isDatabaseActive && (
+              <Card header={<h2 className="text-h3 font-bold text-neutral-800 dark:text-white">RDS Database Monitoring Dashboard</h2>}>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md mt-md">
+                  <div className="p-md bg-slate-50 dark:bg-neutral-800/40 rounded-xl border border-slate-100 dark:border-neutral-700/60 text-xs">
+                    <span className="text-slate-400 block mb-1">Database Engine / Status</span>
+                    <span className="text-neutral-800 dark:text-neutral-100 font-bold block">PostgreSQL v14.2</span>
+                    <span className="text-emerald-600 font-semibold block mt-1">AVAILABLE (Primary)</span>
+                  </div>
+                  <div className="p-md bg-slate-50 dark:bg-neutral-800/40 rounded-xl border border-slate-100 dark:border-neutral-700/60 text-xs">
+                    <span className="text-slate-400 block mb-1">Active Connections / Peak</span>
+                    <span className="text-neutral-800 dark:text-neutral-100 font-bold block">84 Active sessions</span>
+                    <span className="text-slate-500 block mt-1">Peak: 145 concurrent sessions</span>
+                  </div>
+                  <div className="p-md bg-slate-50 dark:bg-neutral-800/40 rounded-xl border border-slate-100 dark:border-neutral-700/60 text-xs">
+                    <span className="text-slate-400 block mb-1">Read / Write Query Ratio</span>
+                    <span className="text-neutral-800 dark:text-neutral-100 font-bold block">78% Read / 22% Write</span>
+                    <span className="text-slate-500 block mt-1">Throughput: 8,420 TPS</span>
+                  </div>
+                  <div className="p-md bg-slate-50 dark:bg-neutral-800/40 rounded-xl border border-slate-100 dark:border-neutral-700/60 text-xs">
+                    <span className="text-slate-400 block mb-1">Backup Retention status</span>
+                    <span className="text-neutral-800 dark:text-neutral-100 font-bold block">Daily snapshots active</span>
+                    <span className="text-emerald-600 font-semibold block mt-1">SOC2 Compliant</span>
+                  </div>
+                </div>
+              </Card>
+            )}
           </>
         )}
 
-        {/* 3. FINANCE DASHBOARD VIEW */}
+        {/* FINANCE DASHBOARD VIEW */}
         {dashboardType === 'finance' && (
           <>
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md">
               <StatCard
-                label="Monthly Spend"
-                value={`$${(data?.total_monthly_cost || 67.80).toFixed(2)}`}
-                trend={-8}
-                trendLabel="vs last month"
+                label="Monthly Spend Rate"
+                value={isBillingActive ? `$${(data?.total_monthly_cost || 67.80).toFixed(2)}` : 'Locked'}
+                trend={isBillingActive ? -8 : undefined}
+                trendLabel={isBillingActive ? "vs last month" : "Provision Billing module"}
                 icon={<DollarSign className="h-5 w-5 text-emerald-600" />}
                 backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
               />
               <StatCard
-                label="Potential Savings"
-                value={`$${(data?.potential_savings || 15.00).toFixed(2)}`}
-                trendLabel="Active cost recommendations"
+                label="Savings Recommendation"
+                value={isBillingActive ? `$${(data?.potential_savings || 15.00).toFixed(2)}` : 'Locked'}
+                trendLabel={isBillingActive ? "Estimated monthly savings" : "Assess cost items"}
                 icon={<TrendingDown className="h-5 w-5 text-sky-600" />}
                 backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
               />
               <StatCard
-                label="Projected Cost (Next Month)"
-                value={`$${((data?.total_monthly_cost || 67.80) - (data?.potential_savings || 15.00)).toFixed(2)}`}
-                trendLabel="Post-remediation simulation"
+                label="Optimized Monthly Run"
+                value={isBillingActive ? `$${((data?.total_monthly_cost || 67.80) - (data?.potential_savings || 15.00)).toFixed(2)}` : 'Locked'}
+                trendLabel="Post-recommendation forecast"
                 icon={<TrendingUp className="h-5 w-5 text-emerald-600" />}
                 backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
               />
               <StatCard
-                label="Cloud Efficiency"
-                value="82%"
-                trendLabel="Score: High Efficiency"
+                label="Cloud Optimization Score"
+                value={isBillingActive ? "82%" : 'Locked'}
+                trendLabel={isBillingActive ? "Grade: High efficiency" : "Configure targets"}
                 icon={<Activity className="h-5 w-5 text-emerald-600" />}
                 backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
               />
@@ -377,153 +481,66 @@ export const DashboardPage: React.FC = () => {
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-md">
               <Card className="lg:col-span-2 rounded-xl" header={<h2 className="text-h4 font-bold text-neutral-800 dark:text-white">Service Billing Allocation ($)</h2>}>
-                <div className="h-[280px] w-full mt-md">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={Object.entries(data?.cost_by_service || {}).map(([key, val]) => ({ name: key.toUpperCase(), cost: val }))}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
-                      <YAxis stroke="#94a3b8" fontSize={11} />
-                      <Tooltip />
-                      <Bar dataKey="cost" fill="#0284c7" radius={[6, 6, 0, 0]} name="Monthly Cost ($)" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                {isBillingActive ? (
+                  <div className="h-[280px] w-full mt-md">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={Object.entries(data?.cost_by_service || {}).map(([key, val]) => ({ name: key.toUpperCase(), cost: val }))}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
+                        <YAxis stroke="#94a3b8" fontSize={11} />
+                        <Tooltip />
+                        <Bar dataKey="cost" fill="#0284c7" radius={[6, 6, 0, 0]} name="Monthly Cost ($)" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="p-lg text-center text-slate-400 text-body-sm min-h-[280px] flex items-center justify-center">
+                    Provision Billing module to unlock service cost allocation analysis.
+                  </div>
+                )}
               </Card>
 
               <Card className="rounded-xl" header={<h2 className="text-h4 font-bold text-neutral-800 dark:text-white">Financial Allocation</h2>}>
-                <div className="h-[200px] w-full relative mt-md">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={Object.entries(data?.cost_by_service || {}).map(([key, val]) => ({ name: key.toUpperCase(), value: Number(val) }))}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={55}
-                        outerRadius={80}
-                      >
-                        {Object.entries(data?.cost_by_service || {}).map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="flex flex-wrap justify-center gap-x-md gap-y-sm mt-md">
-                  {Object.entries(data?.cost_by_service || {}).map(([key, val]: any, index) => (
-                    <div key={key} className="flex items-center gap-sm text-xs">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                      <span className="text-slate-500 font-medium">{key.toUpperCase()} (${val.toFixed(2)})</span>
+                {isBillingActive ? (
+                  <>
+                    <div className="h-[200px] w-full relative mt-md">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={Object.entries(data?.cost_by_service || {}).map(([key, val]) => ({ name: key.toUpperCase(), value: Number(val) }))}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={55}
+                            outerRadius={80}
+                          >
+                            {Object.entries(data?.cost_by_service || {}).map((_, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
                     </div>
-                  ))}
-                </div>
+                    <div className="flex flex-wrap justify-center gap-x-md gap-y-sm mt-md">
+                      {Object.entries(data?.cost_by_service || {}).map(([key, val]: any, index) => (
+                        <div key={key} className="flex items-center gap-sm text-xs">
+                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                          <span className="text-slate-500 font-medium">{key.toUpperCase()} (${val.toFixed(2)})</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="p-lg text-center text-slate-400 text-body-sm">
+                    Provision Billing module to display service budget allocation charts.
+                  </div>
+                )}
               </Card>
             </div>
           </>
         )}
-
-        {/* Bottom Section Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-md">
-          {/* Active SaaS Applications Table */}
-          <Card 
-            className="lg:col-span-3 rounded-xl"
-            header={<h2 className="text-h4 font-bold text-neutral-800 dark:text-white">Active SaaS Applications</h2>}
-          >
-            <div className="overflow-x-auto mt-md">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-100 dark:border-neutral-700 text-xs font-semibold text-slate-400">
-                    <th className="py-sm">App Name</th>
-                    <th className="py-sm">Status</th>
-                    <th className="py-sm">Region</th>
-                    <th className="py-sm">Users</th>
-                    <th className="py-sm text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-neutral-700 text-body-sm text-neutral-800 dark:text-neutral-200">
-                  <tr>
-                    <td className="py-md font-medium">E-commerce Platform</td>
-                    <td className="py-md">
-                      <span className="px-2.5 py-1 text-xs rounded-full bg-emerald-50 text-emerald-600 font-medium">Healthy</span>
-                    </td>
-                    <td className="py-md">us-east-1</td>
-                    <td className="py-md">124</td>
-                    <td className="py-md text-right">
-                      <Button variant="secondary" size="sm" className="bg-slate-50 border hover:bg-slate-100 text-neutral-700 font-medium">Manage</Button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-md font-medium">HR Portal</td>
-                    <td className="py-md">
-                      <span className="px-2.5 py-1 text-xs rounded-full bg-amber-50 text-amber-600 font-medium">Updating</span>
-                    </td>
-                    <td className="py-md">eu-central-1</td>
-                    <td className="py-md">23</td>
-                    <td className="py-md text-right">
-                      <Button variant="secondary" size="sm" className="bg-slate-50 border hover:bg-slate-100 text-neutral-700 font-medium">Manage</Button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </Card>
-
-          {/* Infrastructure Overview / AWS Services Grid */}
-          <Card 
-            className="lg:col-span-2 rounded-xl"
-            header={<h2 className="text-h4 font-bold text-neutral-800 dark:text-white">Infrastructure Overview</h2>}
-          >
-            <div className="grid grid-cols-2 gap-md mt-md">
-              <div className="p-md bg-orange-50/40 border border-orange-100 dark:border-neutral-700 dark:bg-neutral-800/20 rounded-xl flex items-center gap-3">
-                <div className="p-2.5 bg-orange-100 dark:bg-orange-950/40 rounded-lg">
-                  <Cpu className="h-5 w-5 text-orange-600" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-semibold text-slate-400">EC2</h4>
-                  <p className="text-body-md font-bold text-neutral-800 dark:text-white">
-                    {data?.resources_by_type?.ec2 || 3} active
-                  </p>
-                </div>
-              </div>
-
-              <div className="p-md bg-blue-50/40 border border-blue-100 dark:border-neutral-700 dark:bg-neutral-800/20 rounded-xl flex items-center gap-3">
-                <div className="p-2.5 bg-blue-100 dark:bg-blue-950/40 rounded-lg">
-                  <Database className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-semibold text-slate-400">RDS</h4>
-                  <p className="text-body-md font-bold text-neutral-800 dark:text-white">
-                    {data?.resources_by_type?.rds || 1} active
-                  </p>
-                </div>
-              </div>
-
-              <div className="p-md bg-amber-50/40 border border-amber-100 dark:border-neutral-700 dark:bg-neutral-800/20 rounded-xl flex items-center gap-3">
-                <div className="p-2.5 bg-amber-100 dark:bg-amber-950/40 rounded-lg">
-                  <Zap className="h-5 w-5 text-amber-600" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-semibold text-slate-400">Lambda</h4>
-                  <p className="text-body-md font-bold text-neutral-800 dark:text-white">51M calls</p>
-                </div>
-              </div>
-
-              <div className="p-md bg-emerald-50/40 border border-emerald-100 dark:border-neutral-700 dark:bg-neutral-800/20 rounded-xl flex items-center gap-3">
-                <div className="p-2.5 bg-emerald-100 dark:bg-emerald-950/40 rounded-lg">
-                  <HardDrive className="h-5 w-5 text-emerald-600" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-semibold text-slate-400">S3</h4>
-                  <p className="text-body-md font-bold text-neutral-800 dark:text-white">
-                    {data?.resources_by_type?.s3 || 11} buckets
-                  </p>
-                </div>
-              </div>
-            </div>
-          </Card>
-        </div>
       </div>
     </DashboardLayout>
   )

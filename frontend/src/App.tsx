@@ -4,6 +4,8 @@ import { LoginPage } from './pages/LoginPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { ResourcesPage } from './pages/ResourcesPage'
+import { CatalogPage } from './pages/CatalogPage'
+import { GovernancePage } from './pages/GovernancePage'
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = React.useState(false)
@@ -24,10 +26,12 @@ function App() {
       <Routes>
         {isAuthenticated ? (
           <>
+            <Route path="/" element={<CatalogPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/resources" element={<ResourcesPage />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/governance" element={<GovernancePage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </>
         ) : (
           <>
