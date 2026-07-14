@@ -1,5 +1,5 @@
 import React from 'react'
-import { Cloud, Settings, LogOut, Moon, Sun, Menu, X } from 'lucide-react'
+import { Cloud, Settings, LogOut, Moon, Sun, Menu, X, Search, Bell } from 'lucide-react'
 import { Avatar } from './Avatar'
 
 interface HeaderProps {
@@ -14,8 +14,8 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  userName = 'John Doe',
-  userEmail = 'john@example.com',
+  userName = 'Ava Wilson',
+  userEmail = 'ava@cloudpulse.ai',
   userAvatar,
   onLogout,
   onSettings,
@@ -27,16 +27,30 @@ export const Header: React.FC<HeaderProps> = ({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false)
 
   return (
-    <header className="sticky top-0 z-40 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-elevation-1">
+    <header className="sticky top-0 z-40 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800">
       <div className="flex items-center justify-between h-16 px-6">
-        {/* Logo */}
-        <div className="flex items-center gap-2">
-          <Cloud className="h-6 w-6 text-primary-600" />
-          <span className="text-h4 font-bold text-neutral-900 dark:text-white">CloudPulse</span>
+        {/* Search Bar */}
+        <div className="flex-1 max-w-md hidden md:flex items-center bg-slate-100 dark:bg-neutral-700/50 rounded-lg px-3 py-1.5 gap-2 border border-slate-200 dark:border-neutral-700">
+          <Search className="h-4 w-4 text-slate-400" />
+          <input 
+            type="text" 
+            placeholder="Search resources, logs..." 
+            className="bg-transparent border-none outline-none text-body-sm text-slate-600 dark:text-neutral-200 w-full placeholder-slate-400"
+          />
+        </div>
+        <div className="md:hidden flex items-center gap-2">
+          <Cloud className="h-6 w-6 text-sky-500" />
+          <span className="text-body-lg font-bold text-neutral-900 dark:text-white">CloudWare</span>
         </div>
 
         {/* Right side */}
         <div className="flex items-center gap-4">
+          {/* Notifications */}
+          <button className="relative p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-smooth">
+            <Bell className="h-5 w-5 text-neutral-600 dark:text-slate-300" />
+            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-neutral-800" />
+          </button>
+
           {/* Dark mode toggle */}
           <button
             onClick={onToggleDarkMode}
@@ -44,25 +58,26 @@ export const Header: React.FC<HeaderProps> = ({
             aria-label="Toggle dark mode"
           >
             {isDarkMode ? (
-              <Sun className="h-5 w-5 text-neutral-600" />
+              <Sun className="h-5 w-5 text-neutral-600 dark:text-slate-300" />
             ) : (
-              <Moon className="h-5 w-5 text-neutral-600" />
+              <Moon className="h-5 w-5 text-neutral-600 dark:text-slate-300" />
             )}
           </button>
 
           {/* Profile dropdown */}
-          <div className="relative">
+          <div className="relative flex items-center gap-3">
+            <div className="hidden sm:flex flex-col text-right">
+              <span className="text-body-sm font-semibold text-neutral-800 dark:text-neutral-200">Ava</span>
+              <span className="text-[10px] text-neutral-500 dark:text-neutral-400">Ava Wilson - CEO/Admin</span>
+            </div>
+            
             <button
               onClick={() => setIsProfileOpen(!isProfileOpen)}
               className="flex items-center gap-2 p-1 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-md transition-smooth"
             >
               <Avatar
-                initials={userName
-                  .split(' ')
-                  .map((n) => n[0])
-                  .join('')
-                  .toUpperCase()}
-                src={userAvatar}
+                initials="AW"
+                src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150"
                 size="md"
               />
             </button>
