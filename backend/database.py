@@ -71,6 +71,12 @@ def init_db():
             db.add(user)
             db.commit()
             print("Database Seed: Created default admin user 'admin@cloudpulse.ai' with password 'Password123!'")
+
+        # Log all users currently in the database
+        all_users = db.query(User).all()
+        print(f"Database Seed Verify: Total users in DB: {len(all_users)}")
+        for u in all_users:
+            print(f"  User: email={u.email}, username={u.username}, hashed={u.hashed_password}, is_active={u.is_active}")
     except Exception as e:
         print(f"Database Seed Error: {e}")
         db.rollback()
