@@ -55,16 +55,20 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
 @router.post("/login", response_model=TokenResponse)
 async def login(credentials: TokenRequest, db: Session = Depends(get_db)):
     """Login and get access token."""
+    print(f"Login Attempt: email={repr(credentials.email)}, password_len={len(credentials.password)}")
     # Find user
     user = db.query(User).filter(User.email == credentials.email).first()
     if not user:
+        print(f"Login Failure: User with email {repr(credentials.email)} not found in database.")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
         )
 
     # Verify password
-    if not verify_password(credentials.password, user.hashed_password):
+    is_valid = verify_password(credentials.password, user.hashed_password)
+    print(f"Login Verification: is_valid={is_valid}")
+    if not is_valid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
