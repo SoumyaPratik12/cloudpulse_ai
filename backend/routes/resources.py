@@ -52,3 +52,32 @@ async def get_resource(
         )
 
     return resource
+
+
+@router.post("/sync")
+async def sync_aws_resources_endpoint(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Manually trigger sync with AWS and generate recommendations."""
+    from aws_integration import get_aws_client, sync_resources_to_db, generate_recommendations_for_org
+    from models import AWSCredential
+
+    creds = db.query(AWSCredential).filter(
+        AWSCredential.organization_id == current_user.organization_id,
+        AWSCredential.is_active == True
+    ).first()
+
+    access_key = creds.access_key_id if creds else None
+    secret_key = creds.secret_access_key if creds else None
+
+    try:
+        client = get_aws_client(access_key_id=access_key, secret_access_key=secret_key)
+        sync_resources_to_db(db, current_user.organization_id, client)
+        generate_recommendations_for_org(db, current_user.organization_id)
+        return {"status": "success", "message": "Resources synced and recommendations updated."}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to sync with AWS: {str(e)}"
+        )

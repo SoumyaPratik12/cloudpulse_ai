@@ -39,7 +39,7 @@ resource "aws_iam_role" "ecs_task_role" {
 
 resource "aws_iam_policy" "aws_readonly" {
   name        = "${var.app_name}-${var.environment}-aws-readonly"
-  description = "Allows read-only access for CloudPulse to scan AWS infrastructure"
+  description = "Allows read-only access and remediation for CloudPulse to optimize AWS infrastructure"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -47,7 +47,12 @@ resource "aws_iam_policy" "aws_readonly" {
       {
         Action = [
           "ec2:Describe*",
+          "ec2:StopInstances",
+          "ec2:StartInstances",
+          "ec2:TerminateInstances",
           "rds:Describe*",
+          "rds:StopDBInstance",
+          "rds:StartDBInstance",
           "s3:List*",
           "s3:GetBucketLocation",
           "cloudwatch:GetMetricData",

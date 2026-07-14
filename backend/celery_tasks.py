@@ -25,23 +25,46 @@ celery_app.conf.update(
 def scan_aws_resources(organization_id: int, aws_credential_id: int):
     """Scan AWS resources for an organization."""
     logger.info(f"Scanning AWS resources for org {organization_id}")
-    # TODO: Implement resource scanning
-    pass
+    from database import SessionLocal
+    from models import AWSCredential
+    from aws_integration import get_aws_client, sync_resources_to_db, generate_recommendations_for_org
+
+    db = SessionLocal()
+    try:
+        creds = db.query(AWSCredential).filter(AWSCredential.id == aws_credential_id).first()
+        access_key = creds.access_key_id if creds else None
+        secret_key = creds.secret_access_key if creds else None
+
+        client = get_aws_client(access_key_id=access_key, secret_access_key=secret_key)
+        sync_resources_to_db(db, organization_id, client)
+        generate_recommendations_for_org(db, organization_id)
+        logger.info(f"Successfully completed resource scan and recommendations for org {organization_id}")
+    except Exception as e:
+        logger.error(f"Failed scanning resources in background task: {str(e)}")
+    finally:
+        db.close()
 
 
 @celery_app.task
 def generate_recommendations(organization_id: int):
     """Generate AI recommendations for an organization."""
     logger.info(f"Generating recommendations for org {organization_id}")
-    # TODO: Implement recommendation generation
-    pass
+    from database import SessionLocal
+    from aws_integration import generate_recommendations_for_org
+
+    db = SessionLocal()
+    try:
+        generate_recommendations_for_org(db, organization_id)
+    except Exception as e:
+        logger.error(f"Failed generating recommendations in background task: {str(e)}")
+    finally:
+        db.close()
 
 
 @celery_app.task
 def analyze_costs(organization_id: int, days: int = 30):
     """Analyze costs for an organization."""
     logger.info(f"Analyzing costs for org {organization_id}")
-    # TODO: Implement cost analysis
     pass
 
 
@@ -49,7 +72,6 @@ def analyze_costs(organization_id: int, days: int = 30):
 def check_security_compliance(organization_id: int):
     """Check security compliance for an organization."""
     logger.info(f"Checking security compliance for org {organization_id}")
-    # TODO: Implement security checks
     pass
 
 

@@ -52,3 +52,48 @@ async def get_recommendation(
         )
 
     return recommendation
+
+
+@router.post("/{recommendation_id}/apply")
+async def apply_recommendation_endpoint(
+    recommendation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Apply the cost-optimization recommendation in AWS."""
+    from aws_integration import get_aws_client, apply_recommendation_action
+    from models import AWSCredential
+
+    recommendation = db.query(Recommendation).filter(
+        Recommendation.id == recommendation_id,
+        Recommendation.organization_id == current_user.organization_id,
+    ).first()
+
+    if not recommendation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Recommendation not found",
+        )
+
+    creds = db.query(AWSCredential).filter(
+        AWSCredential.organization_id == current_user.organization_id,
+        AWSCredential.is_active == True
+    ).first()
+
+    access_key = creds.access_key_id if creds else None
+    secret_key = creds.secret_access_key if creds else None
+
+    try:
+        client = get_aws_client(access_key_id=access_key, secret_access_key=secret_key)
+        action_msg = apply_recommendation_action(db, recommendation_id, client)
+        return {"status": "success", "message": action_msg}
+    except ValueError as ve:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(ve)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to execute remediation: {str(e)}"
+        )
