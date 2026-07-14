@@ -105,6 +105,13 @@ export const DashboardPage: React.FC = () => {
           <p className="text-body-md text-neutral-600 dark:text-neutral-400">Monitor your cloud infrastructure at a glance</p>
         </div>
 
+        {/* Error Alert */}
+        {error && (
+          <Alert type="error" title="Dashboard Error" dismissible>
+            {error}
+          </Alert>
+        )}
+
         {/* Alert */}
         {data?.recommendations?.length > 0 && (
           <Alert type="warning" title="Attention Required" dismissible>
