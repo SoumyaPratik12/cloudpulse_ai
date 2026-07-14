@@ -52,21 +52,56 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     return db_user
 
 
+from fastapi import Request
+
 @router.post("/login", response_model=TokenResponse)
-async def login(credentials: TokenRequest, db: Session = Depends(get_db)):
+async def login(request: Request, db: Session = Depends(get_db)):
     """Login and get access token."""
-    print(f"Login Attempt: email={repr(credentials.email)}, password_len={len(credentials.password)}")
+    content_type = request.headers.get("content-type", "")
+
+    email = None
+    password = None
+
+    if "application/json" in content_type:
+        try:
+            body = await request.json()
+            email = body.get("email")
+            password = body.get("password")
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid JSON payload"
+            )
+    else:
+        try:
+            form = await request.form()
+            email = form.get("username")
+            password = form.get("password")
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid form data payload"
+            )
+
+    if not email or not password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing email or password"
+        )
+
+    print(f"Login Attempt: email={repr(email)}, password_len={len(password)}")
+
     # Find user
-    user = db.query(User).filter(User.email == credentials.email).first()
+    user = db.query(User).filter(User.email == email).first()
     if not user:
-        print(f"Login Failure: User with email {repr(credentials.email)} not found in database.")
+        print(f"Login Failure: User with email {repr(email)} not found in database.")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
         )
 
     # Verify password
-    is_valid = verify_password(credentials.password, user.hashed_password)
+    is_valid = verify_password(password, user.hashed_password)
     print(f"Login Verification: is_valid={is_valid}")
     if not is_valid:
         raise HTTPException(
