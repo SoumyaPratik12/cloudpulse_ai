@@ -16,7 +16,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   userName = 'Ava Wilson',
   userEmail = 'ava@cloudpulse.ai',
-  userAvatar,
+  userAvatar: _userAvatar,
   onLogout,
   onSettings,
   isDarkMode = false,
