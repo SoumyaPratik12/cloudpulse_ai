@@ -260,7 +260,7 @@ jobs:
     
     environment:
       name: production
-      url: https://app.cloudpulse.ai
+      url: http://cloudpulse-prod-alb-703445417.ap-south-1.elb.amazonaws.com
 
     steps:
       - uses: actions/checkout@v4
