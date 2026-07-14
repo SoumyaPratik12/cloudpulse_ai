@@ -1,7 +1,6 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
-  Cloud, 
   LayoutDashboard, 
   Grid, 
   Cpu, 
@@ -10,8 +9,6 @@ import {
   Network, 
   BarChart3, 
   DollarSign, 
-  Settings, 
-  HelpCircle, 
   ChevronDown,
   Lock,
   ShieldAlert

@@ -4,7 +4,6 @@ import { StatCard } from '../components/StatCard'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
 import { Badge } from '../components/Badge'
-import { Alert } from '../components/Alert'
 import { 
   AreaChart, 
   Area, 
@@ -24,7 +23,6 @@ import {
   ShieldCheck, 
   DollarSign, 
   Users, 
-  Lock, 
   CheckCircle, 
   AlertTriangle,
   XCircle,
