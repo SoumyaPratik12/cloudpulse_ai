@@ -14,7 +14,8 @@ async def health_check(db: Session = Depends(get_db)):
     """Health check endpoint."""
     try:
         # Check database
-        db.execute("SELECT 1")
+        from sqlalchemy import text
+        db.execute(text("SELECT 1"))
         database_status = "healthy"
     except Exception as e:
         database_status = f"unhealthy: {str(e)}"
