@@ -90,6 +90,26 @@ class AWSClient:
             logger.error(f"Error getting S3 buckets: {str(e)}")
             return []
 
+    def get_vpcs(self) -> List[Dict[str, Any]]:
+        """Get all VPCs (Networking)."""
+        try:
+            response = self.ec2.describe_vpcs()
+            vpcs = []
+            for vpc in response.get("Vpcs", []):
+                tags = {tag["Key"]: tag["Value"] for tag in vpc.get("Tags", [])}
+                vpcs.append(
+                    {
+                        "id": vpc["VpcId"],
+                        "state": vpc["State"],
+                        "cidr": vpc["CidrBlock"],
+                        "tags": tags,
+                    }
+                )
+            return vpcs
+        except ClientError as e:
+            logger.error(f"Error getting VPCs: {str(e)}")
+            return []
+
     def get_cost_and_usage(self, days: int = 30) -> Dict[str, Any]:
         """Get cost and usage metrics."""
         try:
@@ -285,6 +305,34 @@ def sync_resources_to_db(db: Session, organization_id: int, client: AWSClient):
                 region="ap-south-1",
                 state="active",
                 monthly_cost=5.0,
+                last_scanned_at=datetime.utcnow()
+            )
+            db.add(resource)
+
+    # 4. Sync VPCs (Networking)
+    vpcs = client.get_vpcs()
+    logger.info(f"Syncing {len(vpcs)} VPCs for org {organization_id}")
+    for vpc in vpcs:
+        resource = db.query(Resource).filter(
+            Resource.organization_id == organization_id,
+            Resource.resource_id == vpc["id"]
+        ).first()
+
+        name = vpc["tags"].get("Name", vpc["id"])
+
+        if resource:
+            resource.state = vpc["state"]
+            resource.name = name
+            resource.last_scanned_at = datetime.utcnow()
+        else:
+            resource = Resource(
+                organization_id=organization_id,
+                resource_id=vpc["id"],
+                resource_type="vpc",
+                name=name,
+                region="ap-south-1",
+                state=vpc["state"],
+                monthly_cost=0.0,
                 last_scanned_at=datetime.utcnow()
             )
             db.add(resource)

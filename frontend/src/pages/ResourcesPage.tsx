@@ -1,4 +1,5 @@
 import React from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { DashboardLayout } from '../components/DashboardLayout'
 import { DataTable } from '../components/DataTable'
 import { Card } from '../components/Card'
@@ -7,6 +8,9 @@ import { Alert } from '../components/Alert'
 import { RefreshCw } from 'lucide-react'
 
 export const ResourcesPage: React.FC = () => {
+  const [searchParams] = useSearchParams()
+  const typeParam = searchParams.get('type')
+
   const [resources, setResources] = React.useState<any[]>([])
   const [loading, setLoading] = React.useState(true)
   const [syncing, setSyncing] = React.useState(false)
@@ -19,8 +23,12 @@ export const ResourcesPage: React.FC = () => {
       window.location.href = '/login'
       return
     }
+    setLoading(true)
     try {
-      const res = await fetch('/api/v1/resources/', {
+      const url = typeParam 
+        ? `/api/v1/resources/?resource_type=${typeParam}`
+        : '/api/v1/resources/'
+      const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (res.status === 401) {
@@ -40,7 +48,7 @@ export const ResourcesPage: React.FC = () => {
 
   React.useEffect(() => {
     fetchResources()
-  }, [])
+  }, [typeParam])
 
   const handleSyncResources = async () => {
     const token = localStorage.getItem('token')
@@ -85,13 +93,62 @@ export const ResourcesPage: React.FC = () => {
   const runningCount = resources.filter(r => r.state === 'running' || r.state === 'available' || r.state === 'active').length
   const stoppedCount = resources.filter(r => r.state === 'stopped').length
 
+  const getHeaderDetails = () => {
+    switch (typeParam) {
+      case 'ec2':
+        return {
+          title: 'Compute Resources',
+          subtitle: 'Manage and monitor your AWS EC2 compute instances',
+          card: 'EC2 Instances'
+        }
+      case 'rds':
+        return {
+          title: 'Database Resources',
+          subtitle: 'Manage and monitor your AWS RDS database instances',
+          card: 'RDS Databases'
+        }
+      case 's3':
+        return {
+          title: 'Storage Resources',
+          subtitle: 'Manage and monitor your AWS S3 buckets',
+          card: 'S3 Buckets'
+        }
+      case 'vpc':
+        return {
+          title: 'Networking Resources',
+          subtitle: 'Manage and monitor your AWS VPC networks',
+          card: 'VPC Networks'
+        }
+      default:
+        return {
+          title: 'Resources',
+          subtitle: 'Manage and monitor your synced AWS cloud infrastructure',
+          card: 'All Resources'
+        }
+    }
+  }
+
+  const header = getHeaderDetails()
+
+  const activeNav = typeParam 
+    ? (typeParam === 'ec2' 
+        ? 'compute' 
+        : typeParam === 'rds' 
+          ? 'database' 
+          : typeParam === 's3' 
+            ? 'storage' 
+            : typeParam === 'vpc' 
+              ? 'networking' 
+              : 'resources') 
+    : 'resources'
+
   return (
-    <DashboardLayout activeNavItem="resources">
+    <DashboardLayout activeNavItem={activeNav}>
       <div className="space-y-lg">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-h1 font-bold text-neutral-900 dark:text-white mb-2">Resources</h1>
-            <p className="text-body-md text-neutral-600 dark:text-neutral-400">Manage your AWS infrastructure</p>
+            <h1 className="text-h1 font-bold text-neutral-900 dark:text-white mb-2">{header.title}</h1>
+            <p className="text-body-md text-neutral-600 dark:text-neutral-400">{header.subtitle}</p>
           </div>
           <Button 
             variant="primary" 
@@ -119,7 +176,7 @@ export const ResourcesPage: React.FC = () => {
           Total resources: <strong>{resources.length}</strong> | Active: <strong>{runningCount}</strong> | Stopped: <strong>{stoppedCount}</strong>
         </Alert>
 
-        <Card header={<h2 className="text-h3 font-semibold">All Resources</h2>}>
+        <Card header={<h2 className="text-h3 font-semibold">{header.card}</h2>}>
           {loading ? (
             <div className="p-lg text-center text-neutral-500">Loading resources list...</div>
           ) : (
