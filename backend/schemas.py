@@ -96,7 +96,7 @@ class ResourceResponse(ResourceBase):
     memory_utilization: float | None = None
     last_scanned_at: datetime | None = None
     created_at: datetime
-    updated_at: datetime
+    updated_at: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -117,7 +117,7 @@ class RecommendationResponse(RecommendationBase):
     resource_id: int | None = None
     status: str
     created_at: datetime
-    updated_at: datetime
+    updated_at: datetime | None = None
 
     class Config:
         from_attributes = True
