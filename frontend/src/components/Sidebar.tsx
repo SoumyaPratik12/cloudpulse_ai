@@ -1,4 +1,5 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 import { BarChart3, Settings, DollarSign, Zap, LifeBuoy, HelpCircle, ChevronDown } from 'lucide-react'
 
 interface NavItem {
@@ -61,6 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeItem,
   onNavigate,
 }) => {
+  const navigate = useNavigate()
   const [expandedItems, setExpandedItems] = React.useState<Set<string>>(new Set())
 
   const toggleExpanded = (itemId: string) => {
@@ -99,6 +101,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 onClick={() => {
                   onNavigate?.(item.id)
+                  if (item.href) {
+                    navigate(item.href)
+                  }
                   if (item.subitems) {
                     toggleExpanded(item.id)
                   }
@@ -127,7 +132,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {item.subitems.map((subitem) => (
                     <button
                       key={subitem.id}
-                      onClick={() => onNavigate?.(subitem.id)}
+                      onClick={() => {
+                        onNavigate?.(subitem.id)
+                        if (subitem.href) {
+                          navigate(subitem.href)
+                        }
+                      }}
                       className={`
                         w-full text-left px-3 py-1.5 rounded-md text-body-sm
                         transition-smooth
