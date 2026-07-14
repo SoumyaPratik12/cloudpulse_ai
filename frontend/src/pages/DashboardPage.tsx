@@ -15,10 +15,19 @@ export const DashboardPage: React.FC = () => {
 
   const fetchDashboardData = async () => {
     const token = localStorage.getItem('token')
+    if (!token) {
+      window.location.href = '/login'
+      return
+    }
     try {
       const res = await fetch('/api/v1/dashboard/executive', {
         headers: { 'Authorization': `Bearer ${token}` }
       })
+      if (res.status === 401) {
+        localStorage.removeItem('token')
+        window.location.href = '/login'
+        return
+      }
       if (!res.ok) throw new Error('Failed to load dashboard data')
       const body = await res.json()
       setData(body)

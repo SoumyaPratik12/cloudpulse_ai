@@ -15,10 +15,19 @@ export const ResourcesPage: React.FC = () => {
 
   const fetchResources = async () => {
     const token = localStorage.getItem('token')
+    if (!token) {
+      window.location.href = '/login'
+      return
+    }
     try {
       const res = await fetch('/api/v1/resources/', {
         headers: { 'Authorization': `Bearer ${token}` }
       })
+      if (res.status === 401) {
+        localStorage.removeItem('token')
+        window.location.href = '/login'
+        return
+      }
       if (!res.ok) throw new Error('Failed to fetch resources')
       const body = await res.json()
       setResources(body)
