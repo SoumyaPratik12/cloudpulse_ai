@@ -6,6 +6,9 @@ import re
 # Monkey-patch typing._eval_type to dynamically resolve missing type annotations (e.g., SQLAlchemy private types)
 class GenericFallback:
     @classmethod
+    def __class_getitem__(cls, item):
+        return cls
+    @classmethod
     def __getitem__(cls, item):
         return cls
     @classmethod
