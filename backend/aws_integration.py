@@ -1,6 +1,7 @@
 """AWS integration module for infrastructure analysis."""
 import logging
 from typing import Dict, List, Any, Optional
+from sqlalchemy.orm import Session
 import boto3
 from botocore.exceptions import ClientError
 from config import settings
