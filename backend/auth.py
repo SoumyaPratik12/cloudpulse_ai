@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from config import settings
+from database import get_db
 from models import User
 from schemas import TokenData
 
@@ -74,7 +75,7 @@ def decode_token(token: str) -> Optional[TokenData]:
 
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme), db: Session = Depends()
+    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
 ) -> User:
     """Get the current authenticated user."""
     credential_exception = HTTPException(
