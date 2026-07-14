@@ -15,7 +15,9 @@ import {
   ResponsiveContainer, 
   PieChart, 
   Pie, 
-  Cell 
+  Cell,
+  BarChart,
+  Bar
 } from 'recharts'
 import { 
   CheckCircle2, 
@@ -25,13 +27,17 @@ import {
   Cpu, 
   Database, 
   Zap, 
-  HardDrive 
+  HardDrive,
+  TrendingDown,
+  TrendingUp,
+  AlertTriangle
 } from 'lucide-react'
 
 export const DashboardPage: React.FC = () => {
   const [data, setData] = React.useState<any>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState('')
+  const [dashboardType, setDashboardType] = React.useState<'executive' | 'devops' | 'finance'>('executive')
   const [activeTab, setActiveTab] = React.useState<'1d' | '7d' | '30d'>('1d')
 
   const fetchDashboardData = async () => {
@@ -40,8 +46,9 @@ export const DashboardPage: React.FC = () => {
       window.location.href = '/login'
       return
     }
+    setLoading(true)
     try {
-      const res = await fetch('/api/v1/dashboard/executive', {
+      const res = await fetch(`/api/v1/dashboard/${dashboardType}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (res.status === 401) {
@@ -61,212 +68,361 @@ export const DashboardPage: React.FC = () => {
 
   React.useEffect(() => {
     fetchDashboardData()
-  }, [])
+  }, [dashboardType])
 
   if (loading) {
     return (
       <DashboardLayout activeNavItem="dashboard">
         <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-body-lg text-neutral-600 dark:text-neutral-400">Loading CloudPulse Dashboard...</div>
+          <div className="text-body-lg text-neutral-600 dark:text-neutral-400">Loading {dashboardType.toUpperCase()} telemetry...</div>
         </div>
       </DashboardLayout>
     )
   }
 
-  // Double area chart performance data
-  const performanceData = [
-    { name: '00:00', latency: 45, calls: 500 },
-    { name: '03:00', latency: 75, calls: 900 },
-    { name: '06:00', latency: 125, calls: 1200 },
-    { name: '09:00', latency: 110, calls: 1400 },
-    { name: '07 Jun', latency: 145, calls: 1000 },
-    { name: '12:00', latency: 120, calls: 1250 },
-    { name: '08:00', latency: 210, calls: 1100 },
-    { name: '02:00', latency: 115, calls: 1650 },
-    { name: '14:00', latency: 175, calls: 1900 },
-    { name: '18:00', latency: 230, calls: 2200 },
-  ]
-
-  const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6']
-
-  const costData = Object.entries(data?.resources_by_type || {}).map(([key, val]) => ({
-    name: key.toUpperCase(),
-    value: Number(val)
-  }))
-
-  const finalCostData = costData.length > 0 ? costData : [
-    { name: 'EC2', value: 3 },
-    { name: 'RDS', value: 1 },
-    { name: 'S3', value: 11 },
-  ]
-
-  const runningCount = data?.resources_by_type ? Object.values(data.resources_by_type).reduce((a: any, b: any) => a + b, 0) : 15
-  const stoppedCount = data?.recommendations?.length || 0
+  const COLORS = ['#0284c7', '#0d9488', '#f59e0b', '#8b5cf6', '#ef4444']
 
   return (
     <DashboardLayout activeNavItem="dashboard">
       <div className="space-y-lg">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-md">
+        {/* Header and Dashboard Tabs */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-md border-b border-slate-200 dark:border-neutral-700 pb-md">
           <div>
-            <h1 className="text-2xl font-bold text-neutral-900 dark:text-white">Platform Dashboard</h1>
-            <p className="text-body-md text-neutral-600 dark:text-neutral-400">Welcome back, Ava!</p>
+            <h1 className="text-2xl font-bold text-neutral-900 dark:text-white capitalize">{dashboardType} Dashboard</h1>
+            <p className="text-body-md text-neutral-600 dark:text-neutral-400">Real-time cloud infrastructure intelligence</p>
           </div>
-          <div className="flex items-center gap-sm">
-            <Button variant="primary" className="bg-sky-600 hover:bg-sky-700 text-white font-semibold">
-              Create New App
-            </Button>
-            <Button variant="secondary" className="bg-white hover:bg-slate-50 border border-slate-200 text-neutral-700">
-              View Alerts
-            </Button>
+          <div className="flex bg-slate-100 dark:bg-neutral-800 rounded-xl p-1 text-sm border border-slate-200/60 dark:border-neutral-700">
+            {(['executive', 'devops', 'finance'] as const).map(type => (
+              <button
+                key={type}
+                onClick={() => setDashboardType(type)}
+                className={`px-4 py-2 rounded-lg transition-all capitalize font-semibold ${dashboardType === type ? 'bg-white dark:bg-neutral-700 text-sky-600 dark:text-sky-400 shadow-sm' : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'}`}
+              >
+                {type}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Error Alert */}
         {error && (
           <Alert type="error" title="Dashboard Error" dismissible>
             {error}
           </Alert>
         )}
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md">
-          <StatCard
-            label="SaaS App Instances"
-            value={`${runningCount} Active / ${stoppedCount} Paused`}
-            trendLabel="Status: Healthy"
-            icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
-            backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
-          />
-          <StatCard
-            label="User Activity"
-            value="14.2K Active Users"
-            trend={8.5}
-            trendLabel="today"
-            icon={<Users className="h-5 w-5 text-sky-600" />}
-            backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
-          />
-          <StatCard
-            label="Monthly Revenue"
-            value={`$${(data?.monthly_cost || 67.80).toFixed(2)}`}
-            trend={-8}
-            trendLabel="vs last month"
-            icon={<DollarSign className="h-5 w-5 text-emerald-600" />}
-            backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
-          />
-          <StatCard
-            label="System Health"
-            value="99.98% Uptime"
-            trendLabel="All Systems Operational"
-            icon={<Activity className="h-5 w-5 text-emerald-600" />}
-            backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
-          />
-        </div>
+        {/* 1. EXECUTIVE DASHBOARD VIEW */}
+        {dashboardType === 'executive' && (
+          <>
+            {/* Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md">
+              <StatCard
+                label="SaaS App Instances"
+                value={`${data?.resources_by_type ? Object.values(data.resources_by_type).reduce((a: any, b: any) => a + b, 0) : 15} Active`}
+                trendLabel="Status: Healthy"
+                icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+                backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
+              />
+              <StatCard
+                label="User Activity"
+                value="14.2K Active Users"
+                trend={8.5}
+                trendLabel="today"
+                icon={<Users className="h-5 w-5 text-sky-600" />}
+                backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
+              />
+              <StatCard
+                label="Monthly Revenue"
+                value={`$${(data?.monthly_cost || 67.80).toFixed(2)}`}
+                trend={-8}
+                trendLabel="vs last month"
+                icon={<DollarSign className="h-5 w-5 text-emerald-600" />}
+                backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
+              />
+              <StatCard
+                label="System Health"
+                value="99.98% Uptime"
+                trendLabel="All Systems Operational"
+                icon={<Activity className="h-5 w-5 text-emerald-600" />}
+                backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
+              />
+            </div>
 
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-md">
-          {/* Main Area Chart */}
-          <Card 
-            className="lg:col-span-2 rounded-xl"
-            header={
-              <div className="flex items-center justify-between">
-                <h2 className="text-h4 font-bold text-neutral-800 dark:text-white">Application Performance (Last 24h)</h2>
-                <div className="flex bg-slate-100 dark:bg-neutral-700 rounded-lg p-0.5 text-xs">
-                  {(['1d', '7d', '30d'] as const).map(tab => (
-                    <button
-                      key={tab}
-                      onClick={() => setActiveTab(tab)}
-                      className={`px-3 py-1 rounded-md transition-colors ${activeTab === tab ? 'bg-white dark:bg-neutral-800 text-neutral-800 dark:text-white font-medium shadow-sm' : 'text-neutral-500 hover:text-neutral-800'}`}
-                    >
-                      {tab.toUpperCase()}
-                    </button>
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-md">
+              <Card 
+                className="lg:col-span-2 rounded-xl"
+                header={
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-h4 font-bold text-neutral-800 dark:text-white">Application Performance (Last 24h)</h2>
+                    <div className="flex bg-slate-100 dark:bg-neutral-700 rounded-lg p-0.5 text-xs">
+                      {(['1d', '7d', '30d'] as const).map(tab => (
+                        <button
+                          key={tab}
+                          onClick={() => setActiveTab(tab)}
+                          className={`px-3 py-1 rounded-md transition-colors ${activeTab === tab ? 'bg-white dark:bg-neutral-800 text-neutral-800 dark:text-white font-medium shadow-sm' : 'text-neutral-500 hover:text-neutral-800'}`}
+                        >
+                          {tab.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                }
+              >
+                <div className="h-[280px] w-full mt-md">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={[
+                      { name: '00:00', latency: 45, calls: 500 },
+                      { name: '03:00', latency: 75, calls: 900 },
+                      { name: '06:00', latency: 125, calls: 1200 },
+                      { name: '09:00', latency: 110, calls: 1400 },
+                      { name: '12:00', latency: 120, calls: 1250 },
+                      { name: '15:00', latency: 210, calls: 1100 },
+                      { name: '18:00', latency: 175, calls: 1900 },
+                      { name: '21:00', latency: 230, calls: 2200 },
+                    ]}>
+                      <defs>
+                        <linearGradient id="colorLatency" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#0284c7" stopOpacity={0.15}/>
+                          <stop offset="95%" stopColor="#0284c7" stopOpacity={0}/>
+                        </linearGradient>
+                        <linearGradient id="colorCalls" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#0d9488" stopOpacity={0.15}/>
+                          <stop offset="95%" stopColor="#0d9488" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
+                      <YAxis yAxisId="left" stroke="#94a3b8" fontSize={11} />
+                      <YAxis yAxisId="right" orientation="right" stroke="#94a3b8" fontSize={11} />
+                      <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #f1f5f9', borderRadius: 8 }} />
+                      <Legend verticalAlign="top" height={36} iconType="circle" />
+                      <Area yAxisId="left" type="monotone" dataKey="latency" stroke="#0284c7" strokeWidth={2} fillOpacity={1} fill="url(#colorLatency)" name="Request Latency (ms)" />
+                      <Area yAxisId="right" type="monotone" dataKey="calls" stroke="#0d9488" strokeWidth={2} fillOpacity={1} fill="url(#colorCalls)" name="API Calls" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+
+              <Card className="rounded-xl" header={<h2 className="text-h4 font-bold text-neutral-800 dark:text-white">Cost Distribution</h2>}>
+                <div className="h-[200px] w-full relative mt-md">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={Object.entries(data?.resources_by_type || {}).map(([key, val]) => ({ name: key.toUpperCase(), value: Number(val) }))}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={80}
+                        paddingAngle={3}
+                      >
+                        {Object.entries(data?.resources_by_type || {}).map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex flex-wrap justify-center gap-x-md gap-y-sm mt-md">
+                  {Object.entries(data?.resources_by_type || {}).map(([key, val]: any, index) => (
+                    <div key={key} className="flex items-center gap-sm text-xs">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                      <span className="text-slate-500 font-medium">{key.toUpperCase()} ({val})</span>
+                    </div>
                   ))}
                 </div>
-              </div>
-            }
-          >
-            <div className="h-[280px] w-full mt-md">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={performanceData}>
-                  <defs>
-                    <linearGradient id="colorLatency" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0284c7" stopOpacity={0.15}/>
-                      <stop offset="95%" stopColor="#0284c7" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorCalls" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0d9488" stopOpacity={0.15}/>
-                      <stop offset="95%" stopColor="#0d9488" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
-                  <YAxis yAxisId="left" stroke="#94a3b8" fontSize={11} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#94a3b8" fontSize={11} />
-                  <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #f1f5f9', borderRadius: 8 }} />
-                  <Legend verticalAlign="top" height={36} iconType="circle" />
-                  <Area 
-                    yAxisId="left"
-                    type="monotone" 
-                    dataKey="latency" 
-                    stroke="#0284c7" 
-                    strokeWidth={2}
-                    fillOpacity={1} 
-                    fill="url(#colorLatency)" 
-                    name="Request Latency (ms)" 
-                  />
-                  <Area 
-                    yAxisId="right"
-                    type="monotone" 
-                    dataKey="calls" 
-                    stroke="#0d9488" 
-                    strokeWidth={2}
-                    fillOpacity={1} 
-                    fill="url(#colorCalls)" 
-                    name="API Calls" 
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              </Card>
             </div>
-          </Card>
+          </>
+        )}
 
-          {/* Pie Chart */}
-          <Card 
-            className="rounded-xl"
-            header={<h2 className="text-h4 font-bold text-neutral-800 dark:text-white">Cost Chart</h2>}
-          >
-            <div className="h-[200px] w-full relative mt-md">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={finalCostData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={80}
-                    paddingAngle={3}
-                  >
-                    {finalCostData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+        {/* 2. DEVOPS DASHBOARD VIEW */}
+        {dashboardType === 'devops' && (
+          <>
+            {/* Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md">
+              <StatCard
+                label="Active Systems"
+                value={`${data?.resources_by_state?.active || data?.resources_by_state?.running || 0} nodes`}
+                trendLabel="Resource instances online"
+                icon={<Cpu className="h-5 w-5 text-emerald-600" />}
+                backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
+              />
+              <StatCard
+                label="Stopped Systems"
+                value={`${data?.resources_by_state?.stopped || 0} nodes`}
+                trendLabel="Offline resource instances"
+                icon={<Zap className="h-5 w-5 text-amber-500" />}
+                backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
+              />
+              <StatCard
+                label="High CPU Alarms (>80%)"
+                value={`${data?.high_utilization_count || 0} nodes`}
+                trend={data?.high_utilization_count > 0 ? 100 : 0}
+                trendLabel="Require rightsizing attention"
+                icon={<AlertTriangle className="h-5 w-5 text-amber-600" />}
+                backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
+              />
+              <StatCard
+                label="SRE Status"
+                value="Optimal"
+                trendLabel="No ongoing priority 1 outages"
+                icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+                backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
+              />
             </div>
-            
-            {/* Custom Legend */}
-            <div className="flex flex-wrap justify-center gap-x-md gap-y-sm mt-md">
-              {finalCostData.map((item, index) => (
-                <div key={item.name} className="flex items-center gap-sm text-xs">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                  <span className="text-slate-500 font-medium">{item.name} ({item.value})</span>
+
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-md">
+              <Card className="lg:col-span-2 rounded-xl" header={<h2 className="text-h4 font-bold text-neutral-800 dark:text-white">Active Node CPU Telemetry (Last 24h)</h2>}>
+                <div className="h-[280px] w-full mt-md">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={[
+                      { name: '00:00', cpu: 12, memory: 40 },
+                      { name: '04:00', cpu: 18, memory: 42 },
+                      { name: '08:00', cpu: 45, memory: 55 },
+                      { name: '12:00', cpu: 60, memory: 60 },
+                      { name: '16:00', cpu: 85, memory: 72 }, // Utilization Peak
+                      { name: '20:00', cpu: 30, memory: 50 },
+                    ]}>
+                      <defs>
+                        <linearGradient id="colorCpu" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.15}/>
+                          <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
+                      <YAxis stroke="#94a3b8" fontSize={11} />
+                      <Tooltip />
+                      <Legend />
+                      <Area type="monotone" dataKey="cpu" stroke="#f59e0b" strokeWidth={2} fill="url(#colorCpu)" name="Avg CPU Utilization (%)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
+              </Card>
+
+              <Card className="rounded-xl" header={<h2 className="text-h4 font-bold text-neutral-800 dark:text-white">State Distribution</h2>}>
+                <div className="h-[200px] w-full relative mt-md">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={Object.entries(data?.resources_by_state || {}).map(([key, val]) => ({ name: key.toUpperCase(), value: Number(val) }))}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={80}
+                      >
+                        {Object.entries(data?.resources_by_state || {}).map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex flex-wrap justify-center gap-x-md gap-y-sm mt-md">
+                  {Object.entries(data?.resources_by_state || {}).map(([key, val]: any, index) => (
+                    <div key={key} className="flex items-center gap-sm text-xs">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                      <span className="text-slate-500 font-medium">{key.toUpperCase()} ({val})</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
             </div>
-          </Card>
-        </div>
+          </>
+        )}
+
+        {/* 3. FINANCE DASHBOARD VIEW */}
+        {dashboardType === 'finance' && (
+          <>
+            {/* Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md">
+              <StatCard
+                label="Monthly Spend"
+                value={`$${(data?.total_monthly_cost || 67.80).toFixed(2)}`}
+                trend={-8}
+                trendLabel="vs last month"
+                icon={<DollarSign className="h-5 w-5 text-emerald-600" />}
+                backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
+              />
+              <StatCard
+                label="Potential Savings"
+                value={`$${(data?.potential_savings || 15.00).toFixed(2)}`}
+                trendLabel="Active cost recommendations"
+                icon={<TrendingDown className="h-5 w-5 text-sky-600" />}
+                backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
+              />
+              <StatCard
+                label="Projected Cost (Next Month)"
+                value={`$${((data?.total_monthly_cost || 67.80) - (data?.potential_savings || 15.00)).toFixed(2)}`}
+                trendLabel="Post-remediation simulation"
+                icon={<TrendingUp className="h-5 w-5 text-emerald-600" />}
+                backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
+              />
+              <StatCard
+                label="Cloud Efficiency"
+                value="82%"
+                trendLabel="Score: High Efficiency"
+                icon={<Activity className="h-5 w-5 text-emerald-600" />}
+                backgroundColor="bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 rounded-xl"
+              />
+            </div>
+
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-md">
+              <Card className="lg:col-span-2 rounded-xl" header={<h2 className="text-h4 font-bold text-neutral-800 dark:text-white">Service Billing Allocation ($)</h2>}>
+                <div className="h-[280px] w-full mt-md">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={Object.entries(data?.cost_by_service || {}).map(([key, val]) => ({ name: key.toUpperCase(), cost: val }))}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
+                      <YAxis stroke="#94a3b8" fontSize={11} />
+                      <Tooltip />
+                      <Bar dataKey="cost" fill="#0284c7" radius={[6, 6, 0, 0]} name="Monthly Cost ($)" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+
+              <Card className="rounded-xl" header={<h2 className="text-h4 font-bold text-neutral-800 dark:text-white">Financial Allocation</h2>}>
+                <div className="h-[200px] w-full relative mt-md">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={Object.entries(data?.cost_by_service || {}).map(([key, val]) => ({ name: key.toUpperCase(), value: Number(val) }))}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={80}
+                      >
+                        {Object.entries(data?.cost_by_service || {}).map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex flex-wrap justify-center gap-x-md gap-y-sm mt-md">
+                  {Object.entries(data?.cost_by_service || {}).map(([key, val]: any, index) => (
+                    <div key={key} className="flex items-center gap-sm text-xs">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                      <span className="text-slate-500 font-medium">{key.toUpperCase()} (${val.toFixed(2)})</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+          </>
+        )}
 
         {/* Bottom Section Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-md">
