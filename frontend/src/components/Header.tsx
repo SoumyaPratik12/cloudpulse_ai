@@ -40,7 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
         <div className="md:hidden flex items-center gap-2">
           <Cloud className="h-6 w-6 text-sky-500" />
-          <span className="text-body-lg font-bold text-neutral-900 dark:text-white">CloudWare</span>
+          <span className="text-body-lg font-bold text-neutral-900 dark:text-white">CloudPulse</span>
         </div>
 
         {/* Right side */}

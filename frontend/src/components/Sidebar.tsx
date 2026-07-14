@@ -167,7 +167,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Brand Logo header */}
         <div className="flex items-center gap-2 px-6 py-5 border-b border-slate-800">
           <Cloud className="h-7 w-7 text-sky-400" />
-          <span className="text-xl font-bold tracking-tight text-white">CloudWare</span>
+          <span className="text-xl font-bold tracking-tight text-white">CloudPulse</span>
         </div>
 
         <nav className="p-4 space-y-6">
