@@ -31,6 +31,7 @@ export const SettingsPage: React.FC = () => {
   const [isTesting, setIsTesting] = React.useState(false)
   const [testResult, setTestResult] = React.useState<{ success: boolean; message: string; arn?: string } | null>(null)
   const [connectionType, setConnectionType] = React.useState<'role' | 'keys'>('role')
+  const [showCFNTemplate, setShowCFNTemplate] = React.useState(false)
 
   const handleTestConnection = async () => {
     setIsTesting(true)
@@ -328,6 +329,66 @@ export const SettingsPage: React.FC = () => {
           <div className="space-y-md mt-md">
             {connectionType === 'role' ? (
               <>
+                <div className="bg-slate-50 dark:bg-neutral-800 p-md rounded-xl border border-slate-200/60 dark:border-neutral-700/60 space-y-md mb-md text-xs">
+                  <div className="font-bold text-neutral-800 dark:text-neutral-200">1. Deploy Trust Role Template in AWS</div>
+                  <p className="text-slate-500">
+                    Use our CloudFormation template to create a secure, cross-account IAM Role trusting CloudPulse central operations account.
+                  </p>
+                  <div className="grid grid-cols-2 gap-sm">
+                    <div className="p-sm bg-white dark:bg-neutral-900 rounded border border-slate-200/60 dark:border-neutral-700">
+                      <span className="text-[10px] text-slate-400 block font-semibold uppercase">CloudPulse Account ID</span>
+                      <code className="font-mono text-neutral-700 dark:text-neutral-300 font-bold">123456789012</code>
+                    </div>
+                    <div className="p-sm bg-white dark:bg-neutral-900 rounded border border-slate-200/60 dark:border-neutral-700">
+                      <span className="text-[10px] text-slate-400 block font-semibold uppercase">Your External ID</span>
+                      <code className="font-mono text-neutral-700 dark:text-neutral-300 font-bold">
+                        {formData.externalId || `cp-ext-${formData.organizationName ? formData.organizationName.toLowerCase().replace(/[^a-z0-9]/g, '-') : 'general'}-839210`}
+                      </code>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowCFNTemplate(!showCFNTemplate)}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-neutral-700 hover:bg-slate-100 dark:hover:bg-neutral-700 font-semibold text-neutral-700 dark:text-neutral-300 transition-colors"
+                    >
+                      {showCFNTemplate ? 'Hide YAML Template' : 'View YAML Template'}
+                    </button>
+                    <a
+                      href={`https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/template?stackName=CloudPulseConnectionRole&templateURL=https://cloudpulse-public-assets.s3.amazonaws.com/cfn-connection-role.yaml`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold transition-colors inline-block"
+                    >
+                      Quick Deploy Stack
+                    </a>
+                  </div>
+                  {showCFNTemplate && (
+                    <pre className="p-sm bg-[#0f172a] text-slate-200 rounded-lg overflow-x-auto text-[10px] font-mono leading-relaxed border border-slate-800">
+{`AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudPulse cross-account access IAM Role'
+Resources:
+  CloudPulseConnectionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: 'CloudPulseCrossAccountRole'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: 'arn:aws:iam::123456789012:root'
+            Action: 'sts:AssumeRole'
+            Condition:
+              StringEquals:
+                sts:ExternalId: '${formData.externalId || `cp-ext-${formData.organizationName ? formData.organizationName.toLowerCase().replace(/[^a-z0-9]/g, '-') : 'general'}-839210`}'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/ReadOnlyAccess'`}
+                    </pre>
+                  )}
+                </div>
+                
+                <div className="font-bold text-neutral-800 dark:text-neutral-200 mt-md mb-2 text-xs">2. Enter Role ARN Details</div>
                 <FormField
                   label="IAM Role ARN"
                   placeholder="arn:aws:iam::123456789012:role/CloudPulseCrossAccountRole"
