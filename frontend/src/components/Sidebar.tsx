@@ -88,7 +88,7 @@ const serviceNavigationItems: NavItem[] = [
     id: 'security',
     label: 'Team & Security',
     icon: <ShieldAlert className="h-5 w-5" />,
-    href: '/governance',
+    href: '/security',
   },
 ]
 

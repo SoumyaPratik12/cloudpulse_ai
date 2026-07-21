@@ -6,6 +6,7 @@ import { SettingsPage } from './pages/SettingsPage'
 import { ResourcesPage } from './pages/ResourcesPage'
 import { CatalogPage } from './pages/CatalogPage'
 import { GovernancePage } from './pages/GovernancePage'
+import { SecurityPage } from './pages/SecurityPage'
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = React.useState(false)
@@ -32,6 +33,7 @@ function App() {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/resources" element={<ResourcesPage />} />
             <Route path="/governance" element={<GovernancePage />} />
+            <Route path="/security" element={<SecurityPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </>
         ) : (
