@@ -19,6 +19,24 @@ async def list_resources(
     db: Session = Depends(get_db),
 ):
     """List resources for the current organization."""
+    # Auto-transition provisioning resources to running/active/available after 10 seconds
+    from datetime import datetime, timedelta
+    provisioning_res = db.query(Resource).filter(
+        Resource.organization_id == current_user.organization_id,
+        Resource.state == "provisioning"
+    ).all()
+    
+    if provisioning_res:
+        modified = False
+        for r in provisioning_res:
+            if r.last_scanned_at and datetime.utcnow() - r.last_scanned_at > timedelta(seconds=10):
+                r.state = "running" if r.resource_type in ["ec2", "ecs", "lambda"] else "active" if r.resource_type == "s3" else "available"
+                r.cpu_utilization = 15.0 if r.resource_type in ["ec2", "ecs"] else None
+                r.last_scanned_at = datetime.utcnow()
+                modified = True
+        if modified:
+            db.commit()
+
     query = db.query(Resource).filter(
         Resource.organization_id == current_user.organization_id
     )

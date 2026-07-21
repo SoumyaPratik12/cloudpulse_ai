@@ -76,7 +76,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from database import init_db
-from routes import auth, users, organizations, resources, recommendations, dashboard, health
+from routes import auth, users, organizations, resources, recommendations, dashboard, health, provisioning
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +117,7 @@ app.include_router(organizations.router, prefix="/api/v1", tags=["organizations"
 app.include_router(resources.router, prefix="/api/v1", tags=["resources"])
 app.include_router(recommendations.router, prefix="/api/v1", tags=["recommendations"])
 app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
+app.include_router(provisioning.router, prefix="/api/v1", tags=["provisioning"])
 
 
 @app.get("/")

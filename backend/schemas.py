@@ -50,7 +50,7 @@ class OrganizationResponse(OrganizationBase):
     subscription_tier: str
     is_active: bool
     created_at: datetime
-    updated_at: datetime
+    updated_at: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -58,8 +58,10 @@ class OrganizationResponse(OrganizationBase):
 
 # AWS Credential Schemas
 class AWSCredentialBase(BaseModel):
-    access_key_id: str
-    secret_access_key: str
+    access_key_id: str | None = None
+    secret_access_key: str | None = None
+    role_arn: str | None = None
+    external_id: str | None = None
     regions: str = "ap-south-1,us-east-1"
 
 
@@ -74,6 +76,8 @@ class AWSCredentialResponse(BaseModel):
     is_active: bool
     last_verified_at: datetime | None = None
     created_at: datetime
+    role_arn: str | None = None
+    external_id: str | None = None
 
     class Config:
         from_attributes = True

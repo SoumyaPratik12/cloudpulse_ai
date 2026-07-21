@@ -92,7 +92,7 @@ async def update_organization_credentials(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Create or update AWS credentials for the organization."""
+    """Create or update AWS credentials / Role parameters for the organization."""
     from models import AWSCredential
     creds = db.query(AWSCredential).filter(
         AWSCredential.organization_id == current_user.organization_id
@@ -101,6 +101,8 @@ async def update_organization_credentials(
     if creds:
         creds.access_key_id = cred_data.access_key_id
         creds.secret_access_key = cred_data.secret_access_key
+        creds.role_arn = cred_data.role_arn
+        creds.external_id = cred_data.external_id
         creds.regions = cred_data.regions
         creds.last_verified_at = None
     else:
@@ -109,6 +111,8 @@ async def update_organization_credentials(
             user_id=current_user.id,
             access_key_id=cred_data.access_key_id,
             secret_access_key=cred_data.secret_access_key,
+            role_arn=cred_data.role_arn,
+            external_id=cred_data.external_id,
             regions=cred_data.regions,
         )
         db.add(creds)
@@ -116,6 +120,28 @@ async def update_organization_credentials(
     db.commit()
     db.refresh(creds)
     return creds
+
+
+@router.delete("/credentials")
+async def revoke_organization_credentials(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Revoke AWS credentials / IAM connection instantly."""
+    from models import AWSCredential, Resource
+    
+    # 1. Delete credentials
+    db.query(AWSCredential).filter(
+        AWSCredential.organization_id == current_user.organization_id
+    ).delete()
+    
+    # 2. Delete all synced resources to ensure zero visibility
+    db.query(Resource).filter(
+        Resource.organization_id == current_user.organization_id
+    ).delete()
+    
+    db.commit()
+    return {"status": "success", "message": "AWS connection revoked and access cut."}
 
 
 @router.put("/me", response_model=OrganizationResponse)
@@ -150,14 +176,16 @@ async def test_organization_credentials(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Test connection with the provided AWS credentials using STS get_caller_identity."""
+    """Test connection with the provided AWS credentials using STS get_caller_identity or assume_role."""
     import boto3
     from botocore.exceptions import ClientError
     
     access_key = cred_data.access_key_id
     secret_key = cred_data.secret_access_key
+    role_arn = cred_data.role_arn
+    external_id = cred_data.external_id
     
-    if access_key.startswith("AKIA") and secret_key == "••••••••••••••••••••":
+    if access_key and access_key.startswith("AKIA") and secret_key == "••••••••••••••••••••":
         from models import AWSCredential
         db_cred = db.query(AWSCredential).filter(
             AWSCredential.organization_id == current_user.organization_id
@@ -166,30 +194,48 @@ async def test_organization_credentials(
             secret_key = db_cred.secret_access_key
 
     # Developer bypass for mock inputs
-    if access_key == "mock-access-key" or access_key.startswith("mock"):
+    if (role_arn and "mock" in role_arn) or (access_key and "mock" in access_key):
         return {
             "status": "success",
             "message": "Successfully authenticated with Mock AWS.",
-            "arn": "arn:aws:iam::123456789012:user/mock-user",
+            "arn": role_arn or "arn:aws:iam::123456789012:user/mock-user",
             "account": "123456789012",
-            "user_id": "AIDAABCDEFGHIJKLMNOPQ"
+            "user_id": "AROAABCDEFGHIJKLMNOPQ:CloudPulseSession"
         }
 
     try:
-        sts_client = boto3.client(
-            "sts",
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-            region_name="us-east-1"
-        )
-        identity = sts_client.get_caller_identity()
-        return {
-            "status": "success",
-            "message": "Successfully authenticated with AWS.",
-            "arn": identity.get("Arn"),
-            "account": identity.get("Account"),
-            "user_id": identity.get("UserId")
-        }
+        if role_arn:
+            sts_client = boto3.client("sts")
+            params = {
+                "RoleArn": role_arn,
+                "RoleSessionName": "CloudPulseConnectionTest"
+            }
+            if external_id:
+                params["ExternalId"] = external_id
+            response = sts_client.assume_role(**params)
+            identity = response["AssumedRoleUser"]
+            return {
+                "status": "success",
+                "message": "Successfully assumed IAM role.",
+                "arn": identity.get("Arn"),
+                "account": role_arn.split(":")[4] if len(role_arn.split(":")) > 4 else "unknown",
+                "user_id": identity.get("AssumedRoleId")
+            }
+        else:
+            sts_client = boto3.client(
+                "sts",
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                region_name="us-east-1"
+            )
+            identity = sts_client.get_caller_identity()
+            return {
+                "status": "success",
+                "message": "Successfully authenticated with AWS keys.",
+                "arn": identity.get("Arn"),
+                "account": identity.get("Account"),
+                "user_id": identity.get("UserId")
+            }
     except ClientError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

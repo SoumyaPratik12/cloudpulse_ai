@@ -56,8 +56,10 @@ class AWSCredential(Base):
     id = Column(Integer, primary_key=True, index=True)
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    access_key_id = Column(String(255), nullable=False)
-    secret_access_key = Column(String(255), nullable=False)  # Should be encrypted
+    access_key_id = Column(String(255), nullable=True)
+    secret_access_key = Column(String(255), nullable=True)  # Should be encrypted
+    role_arn = Column(String(500), nullable=True)
+    external_id = Column(String(255), nullable=True)
     regions = Column(String(1000), default="ap-south-1,us-east-1")  # Comma-separated
     is_active = Column(Boolean, default=True)
     last_verified_at = Column(DateTime(timezone=True), nullable=True)
