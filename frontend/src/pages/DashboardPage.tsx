@@ -44,6 +44,10 @@ export const DashboardPage: React.FC = () => {
   const [dashboardType, setDashboardType] = React.useState<'executive' | 'devops' | 'finance'>('executive')
   const [activeTab, setActiveTab] = React.useState<'1d' | '7d' | '30d'>('1d')
   const [provisioned, setProvisioned] = React.useState<string[]>([])
+  const [mode, setMode] = React.useState<'simulation' | 'live'>(() => {
+    return (localStorage.getItem('cloudpulse_mode') as 'simulation' | 'live') || 'simulation'
+  })
+  const [awsConfigured, setAwsConfigured] = React.useState<boolean | null>(null)
 
   // Load provisioned modules
   const loadProvisioned = () => {
@@ -55,9 +59,40 @@ export const DashboardPage: React.FC = () => {
     }
   }
 
+  const checkAWSCredentials = async () => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+    try {
+      const res = await fetch('/api/v1/organizations/credentials', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const body = await res.json()
+        setAwsConfigured(!!(body && body.access_key_id))
+      } else {
+        setAwsConfigured(false)
+      }
+    } catch {
+      setAwsConfigured(false)
+    }
+  }
+
   React.useEffect(() => {
     loadProvisioned()
+    
+    const handleModeChange = () => {
+      const currentMode = (localStorage.getItem('cloudpulse_mode') as 'simulation' | 'live') || 'simulation'
+      setMode(currentMode)
+    }
+    window.addEventListener('cloudpulse_mode_changed', handleModeChange)
+    return () => window.removeEventListener('cloudpulse_mode_changed', handleModeChange)
   }, [])
+
+  React.useEffect(() => {
+    if (mode === 'live') {
+      checkAWSCredentials()
+    }
+  }, [mode])
 
   const fetchDashboardData = async () => {
     const token = localStorage.getItem('token')
@@ -154,6 +189,13 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {error && <Alert type="error" title="Dashboard Error" dismissible>{error}</Alert>}
+
+        {mode === 'live' && awsConfigured === false && (
+          <Alert type="warning" title="AWS Configuration Missing">
+            Live AWS Mode is active, but your AWS Access Key is not configured. 
+            Please go to <Link to="/settings" className="underline font-bold text-sky-600 dark:text-sky-400">Settings</Link> to configure your credentials, or switch back to Simulation Mode in the top navigation.
+          </Alert>
+        )}
 
         {/* AI INSIGHTS PANEL (Unlocked if Analytics is active) */}
         {isAnalyticsActive && (

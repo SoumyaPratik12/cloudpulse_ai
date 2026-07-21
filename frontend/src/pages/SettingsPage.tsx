@@ -202,7 +202,10 @@ export const SettingsPage: React.FC = () => {
         {/* AWS Credentials */}
         <Card header={<h2 className="text-h3 font-semibold">AWS Credentials</h2>}>
           <Alert type="info" title="Secure Connection">
-            Your AWS credentials are encrypted and stored securely. We only use them to analyze your infrastructure.
+            <div>Your AWS credentials are encrypted and stored securely. We only use them to analyze your infrastructure.</div>
+            <div className="mt-2 font-semibold text-xs">
+              Status: {formData.accessKeyId ? "✅ Access Key Configured" : "❌ No Credentials Configured (Using Mock Telemetry)"}
+            </div>
           </Alert>
           <div className="space-y-md mt-md">
             <FormField

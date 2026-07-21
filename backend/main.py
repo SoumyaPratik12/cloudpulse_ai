@@ -32,9 +32,9 @@ class GenericFallback:
 original_eval_type = getattr(typing, "_eval_type", None)
 if original_eval_type:
     _tried_names = set()
-    def custom_eval_type(t, globalns, localns, recursive_guard=frozenset()):
+    def custom_eval_type(t, globalns, localns, *args, **kwargs):
         try:
-            return original_eval_type(t, globalns, localns, recursive_guard)
+            return original_eval_type(t, globalns, localns, *args, **kwargs)
         except NameError as ne:
             match = re.search(r"name '([^']+)' is not defined", str(ne))
             if match:
@@ -60,7 +60,7 @@ if original_eval_type:
                     except Exception:
                         pass
                 try:
-                    return custom_eval_type(t, globalns, localns, recursive_guard)
+                    return custom_eval_type(t, globalns, localns, *args, **kwargs)
                 finally:
                     _tried_names.discard(missing_name)
             raise

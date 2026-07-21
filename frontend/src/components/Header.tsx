@@ -25,18 +25,41 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [isProfileOpen, setIsProfileOpen] = React.useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false)
+  const [mode, setMode] = React.useState<'simulation' | 'live'>(() => {
+    return (localStorage.getItem('cloudpulse_mode') as 'simulation' | 'live') || 'simulation'
+  })
+
+  const toggleMode = () => {
+    const newMode = mode === 'simulation' ? 'live' : 'simulation'
+    setMode(newMode)
+    localStorage.setItem('cloudpulse_mode', newMode)
+    window.dispatchEvent(new Event('cloudpulse_mode_changed'))
+  }
 
   return (
     <header className="sticky top-0 z-40 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800">
       <div className="flex items-center justify-between h-16 px-6">
-        {/* Search Bar */}
-        <div className="flex-1 max-w-md hidden md:flex items-center bg-slate-100 dark:bg-neutral-700/50 rounded-lg px-3 py-1.5 gap-2 border border-slate-200 dark:border-neutral-700">
-          <Search className="h-4 w-4 text-slate-400" />
-          <input 
-            type="text" 
-            placeholder="Search resources, logs..." 
-            className="bg-transparent border-none outline-none text-body-sm text-slate-600 dark:text-neutral-200 w-full placeholder-slate-400"
-          />
+        {/* Left Side: Search Bar & Mode Toggle */}
+        <div className="flex items-center gap-4 flex-1">
+          <div className="flex-1 max-w-md hidden md:flex items-center bg-slate-100 dark:bg-neutral-700/50 rounded-lg px-3 py-1.5 gap-2 border border-slate-200 dark:border-neutral-700">
+            <Search className="h-4 w-4 text-slate-400" />
+            <input 
+              type="text" 
+              placeholder="Search resources, logs..." 
+              className="bg-transparent border-none outline-none text-body-sm text-slate-600 dark:text-neutral-200 w-full placeholder-slate-400"
+            />
+          </div>
+          <button
+            onClick={toggleMode}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-300 shadow-sm border ${
+              mode === 'simulation'
+                ? 'bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900/30'
+                : 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/30'
+            }`}
+          >
+            <span className={`h-2 w-2 rounded-full ${mode === 'simulation' ? 'bg-amber-500' : 'bg-emerald-500 animate-ping'}`} />
+            {mode === 'simulation' ? 'Simulation Mode' : 'Live AWS Connected'}
+          </button>
         </div>
         <div className="md:hidden flex items-center gap-2">
           <Cloud className="h-6 w-6 text-sky-500" />
