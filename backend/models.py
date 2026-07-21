@@ -44,6 +44,7 @@ class Organization(Base):
 
     users = relationship("User", back_populates="organization", cascade="all, delete-orphan")
     aws_credentials = relationship("AWSCredential", back_populates="organization", cascade="all, delete-orphan")
+    aws_connections = relationship("AWSConnection", back_populates="organization", cascade="all, delete-orphan")
     resources = relationship("Resource", back_populates="organization", cascade="all, delete-orphan")
     recommendations = relationship("Recommendation", back_populates="organization", cascade="all, delete-orphan")
 
@@ -76,6 +77,8 @@ class Resource(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    plan_id = Column(Integer, ForeignKey("provisioning_plans.id"), nullable=True)
+    aws_resource_arn = Column(String(500), nullable=True)
     resource_id = Column(String(255), nullable=False)  # AWS resource ID
     resource_type = Column(String(50), nullable=False, index=True)  # ec2, rds, s3, lambda, etc.
     name = Column(String(500), nullable=True)
@@ -153,3 +156,59 @@ class AlertRule(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class AWSConnection(Base):
+    """AWS connections storage."""
+
+    __tablename__ = "aws_connections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    role_arn = Column(String(500), nullable=False)
+    external_id = Column(String(255), nullable=False)
+    region = Column(String(100), default="ap-south-1")
+    status = Column(String(50), default="connected")  # connected, revoked
+    connected_at = Column(DateTime(timezone=True), server_default=func.now())
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+
+    organization = relationship("Organization", back_populates="aws_connections")
+
+
+class ProvisioningPlan(Base):
+    """Infrastructure provisioning plans."""
+
+    __tablename__ = "provisioning_plans"
+
+    id = Column(Integer, primary_key=True, index=True)
+    connection_id = Column(Integer, ForeignKey("aws_connections.id"), nullable=True)
+    requirement_text = Column(Text, nullable=False)
+    generated_plan_json = Column(Text, nullable=False)
+    status = Column(String(50), default="reviewed")  # reviewed, executed
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ResourceMetric(Base):
+    """Time-series resource metrics storage."""
+
+    __tablename__ = "resource_metrics"
+
+    id = Column(Integer, primary_key=True, index=True)
+    resource_id = Column(Integer, ForeignKey("resources.id"), nullable=False)
+    metric_name = Column(String(100), nullable=False)
+    value = Column(Float, nullable=False)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class AIInsight(Base):
+    """AI health insight audits."""
+
+    __tablename__ = "ai_insights"
+
+    id = Column(Integer, primary_key=True, index=True)
+    connection_id = Column(Integer, ForeignKey("aws_connections.id"), nullable=True)
+    resource_id = Column(Integer, ForeignKey("resources.id"), nullable=True)
+    insight_text = Column(Text, nullable=False)
+    severity = Column(String(50), default="info")  # info, warning, critical
+    generated_at = Column(DateTime(timezone=True), server_default=func.now())
+    source_metric_ids = Column(String(500), nullable=True)  # comma-separated source IDs

@@ -76,7 +76,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from database import init_db
-from routes import auth, users, organizations, resources, recommendations, dashboard, health, provisioning
+from routes import auth, users, organizations, resources, recommendations, dashboard, health, provisioning, api_v2
 
 logger = logging.getLogger(__name__)
 
@@ -84,28 +84,7 @@ logger = logging.getLogger(__name__)
 import asyncio
 from fastapi import WebSocket, WebSocketDisconnect
 from database import SessionLocal, init_db
-
-# WebSocket Connection Manager
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: list[WebSocket] = []
-
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-
-    def disconnect(self, websocket: WebSocket):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-
-    async def broadcast(self, message: dict):
-        for connection in self.active_connections:
-            try:
-                await connection.send_json(message)
-            except Exception:
-                pass
-
-manager = ConnectionManager()
+from websocket_manager import manager
 
 async def eventbridge_simulator_loop():
     """Simulates near-real-time AWS Config and EventBridge notification events."""
@@ -198,6 +177,7 @@ app.include_router(resources.router, prefix="/api/v1", tags=["resources"])
 app.include_router(recommendations.router, prefix="/api/v1", tags=["recommendations"])
 app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
 app.include_router(provisioning.router, prefix="/api/v1", tags=["provisioning"])
+app.include_router(api_v2.router, prefix="/api/v1", tags=["api_v2"])
 
 
 @app.websocket("/api/v1/ws/resources")
