@@ -81,15 +81,95 @@ from routes import auth, users, organizations, resources, recommendations, dashb
 logger = logging.getLogger(__name__)
 
 
+import asyncio
+from fastapi import WebSocket, WebSocketDisconnect
+from database import SessionLocal, init_db
+
+# WebSocket Connection Manager
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except Exception:
+                pass
+
+manager = ConnectionManager()
+
+async def eventbridge_simulator_loop():
+    """Simulates near-real-time AWS Config and EventBridge notification events."""
+    logger.info("EventBridge / AWS Config Simulator Loop Started")
+    while True:
+        try:
+            await asyncio.sleep(2.5)
+            db = SessionLocal()
+            try:
+                from models import Resource
+                from datetime import datetime
+                
+                # Check for resources in provisioning state
+                provisioning_res = db.query(Resource).filter(Resource.state == "provisioning").all()
+                if provisioning_res:
+                    updated_resources = []
+                    for r in provisioning_res:
+                        # Auto-transition after a few seconds
+                        r.state = "running" if r.resource_type in ["ec2", "ecs", "lambda"] else "active" if r.resource_type == "s3" else "available"
+                        r.cpu_utilization = 18.2 if r.resource_type in ["ec2", "ecs"] else None
+                        r.last_scanned_at = datetime.utcnow()
+                        db.add(r)
+                        updated_resources.append({
+                            "resource_id": r.resource_id,
+                            "resource_type": r.resource_type,
+                            "name": r.name,
+                            "state": r.state,
+                            "cpu": r.cpu_utilization,
+                            "cost": r.monthly_cost
+                        })
+                    db.commit()
+                    
+                    if updated_resources:
+                        logger.info(f"EventBridge: Broadcasted configuration changes for {len(updated_resources)} resources.")
+                        await manager.broadcast({
+                            "event": "AWS_CONFIG_RESOURCE_CHANGE",
+                            "timestamp": datetime.utcnow().isoformat(),
+                            "resources": updated_resources
+                        })
+            except Exception as e:
+                logger.error(f"EventBridge simulator database error: {e}")
+            finally:
+                db.close()
+        except asyncio.CancelledError:
+            logger.info("EventBridge simulator loop cancelled")
+            break
+        except Exception as e:
+            logger.error(f"EventBridge simulator unexpected error: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan context manager."""
     # Startup
     logger.info(f"Starting {settings.app_name} v{settings.app_version}")
     init_db()
+    
+    # Start EventBridge simulator background task
+    simulator_task = asyncio.create_task(eventbridge_simulator_loop())
     yield
     # Shutdown
     logger.info("Shutting down application")
+    simulator_task.cancel()
+    await asyncio.gather(simulator_task, return_exceptions=True)
 
 
 # Create FastAPI app
@@ -118,6 +198,39 @@ app.include_router(resources.router, prefix="/api/v1", tags=["resources"])
 app.include_router(recommendations.router, prefix="/api/v1", tags=["recommendations"])
 app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
 app.include_router(provisioning.router, prefix="/api/v1", tags=["provisioning"])
+
+
+@app.websocket("/api/v1/ws/resources")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        db = SessionLocal()
+        try:
+            from models import Resource
+            resources = db.query(Resource).all()
+            serialized = []
+            for r in resources:
+                serialized.append({
+                    "resource_id": r.resource_id,
+                    "resource_type": r.resource_type,
+                    "name": r.name,
+                    "state": r.state,
+                    "cpu": r.cpu_utilization,
+                    "cost": r.monthly_cost
+                })
+            await websocket.send_json({
+                "event": "INITIAL_STATE",
+                "resources": serialized
+            })
+        finally:
+            db.close()
+
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception:
+        manager.disconnect(websocket)
 
 
 @app.get("/")

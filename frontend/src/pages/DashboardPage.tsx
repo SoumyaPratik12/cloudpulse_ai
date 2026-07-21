@@ -197,44 +197,55 @@ export const DashboardPage: React.FC = () => {
   }, [mode])
 
   // Poll resources to transition state from provisioning to live
+  // Real-time EventBridge/AWS Config push client via WebSockets
   React.useEffect(() => {
-    const pollResources = async () => {
-      const token = localStorage.getItem('token')
-      if (!token) return
-      try {
-        const res = await fetch('/api/v1/resources/', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        if (res.ok) {
-          const body = await res.json()
-          if (body.length > 0) {
-            setNodes(prev => prev.map(n => {
-              const matching = body.find((r: any) => r.resource_type === n.type)
-              if (matching) {
-                let state: any = 'live'
-                if (matching.state === 'provisioning') state = 'provisioning'
-                else if (matching.state === 'stopped') state = 'degraded'
-                
-                return {
-                  ...n,
-                  state,
-                  cpu: matching.cpu_utilization || n.cpu,
-                  cost: matching.monthly_cost || n.cost
-                }
-              }
-              return n
-            }))
-            const anyProvisioning = body.some((r: any) => r.state === 'provisioning')
-            if (!anyProvisioning) {
-              setIsProvisioning(false)
-            }
-          }
-        }
-      } catch {}
+    const wsUrl = `ws://${window.location.hostname}:8000/api/v1/ws/resources`
+    const ws = new WebSocket(wsUrl)
+
+    ws.onopen = () => {
+      console.log('Connected to EventBridge WebSocket Stream')
     }
 
-    const interval = setInterval(pollResources, 3500)
-    return () => clearInterval(interval)
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data)
+        const resources = message.resources || []
+        
+        if (resources.length > 0) {
+          setNodes(prev => prev.map(n => {
+            const matching = resources.find((r: any) => r.resource_type === n.type)
+            if (matching) {
+              let state: any = 'live'
+              if (matching.state === 'provisioning') state = 'provisioning'
+              else if (matching.state === 'stopped') state = 'degraded'
+              
+              return {
+                ...n,
+                state,
+                cpu: matching.cpu !== undefined ? matching.cpu : n.cpu,
+                cost: matching.cost !== undefined ? matching.cost : n.cost
+              }
+            }
+            return n
+          }))
+          
+          const anyProvisioning = resources.some((r: any) => r.state === 'provisioning')
+          if (!anyProvisioning) {
+            setIsProvisioning(false)
+          }
+        }
+      } catch (err) {
+        console.error('Error parsing EventBridge push message', err)
+      }
+    }
+
+    ws.onclose = () => {
+      console.log('EventBridge WebSocket Stream closed')
+    }
+
+    return () => {
+      ws.close()
+    }
   }, [])
 
   if (loading) {
