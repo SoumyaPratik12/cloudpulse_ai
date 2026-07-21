@@ -26,8 +26,9 @@ function App() {
       <Routes>
         {isAuthenticated ? (
           <>
-            <Route path="/" element={<CatalogPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/catalog" element={<CatalogPage />} />
+            <Route path="/dashboard" element={<Navigate to="/" replace />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/resources" element={<ResourcesPage />} />
             <Route path="/governance" element={<GovernancePage />} />

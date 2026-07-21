@@ -142,3 +142,61 @@ async def update_current_organization(
     db.commit()
     db.refresh(org)
     return org
+
+
+@router.post("/test-credentials")
+async def test_organization_credentials(
+    cred_data: AWSCredentialCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Test connection with the provided AWS credentials using STS get_caller_identity."""
+    import boto3
+    from botocore.exceptions import ClientError
+    
+    access_key = cred_data.access_key_id
+    secret_key = cred_data.secret_access_key
+    
+    if access_key.startswith("AKIA") and secret_key == "••••••••••••••••••••":
+        from models import AWSCredential
+        db_cred = db.query(AWSCredential).filter(
+            AWSCredential.organization_id == current_user.organization_id
+        ).first()
+        if db_cred and db_cred.access_key_id == access_key:
+            secret_key = db_cred.secret_access_key
+
+    # Developer bypass for mock inputs
+    if access_key == "mock-access-key" or access_key.startswith("mock"):
+        return {
+            "status": "success",
+            "message": "Successfully authenticated with Mock AWS.",
+            "arn": "arn:aws:iam::123456789012:user/mock-user",
+            "account": "123456789012",
+            "user_id": "AIDAABCDEFGHIJKLMNOPQ"
+        }
+
+    try:
+        sts_client = boto3.client(
+            "sts",
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            region_name="us-east-1"
+        )
+        identity = sts_client.get_caller_identity()
+        return {
+            "status": "success",
+            "message": "Successfully authenticated with AWS.",
+            "arn": identity.get("Arn"),
+            "account": identity.get("Account"),
+            "user_id": identity.get("UserId")
+        }
+    except ClientError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"AWS connection failed: {e.response['Error']['Message']}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Connection failed: {str(e)}"
+        )

@@ -25,6 +25,49 @@ export const SettingsPage: React.FC = () => {
   const [isSaving, setIsSaving] = React.useState(false)
   const [error, setError] = React.useState('')
   const [successMessage, setSuccessMessage] = React.useState('')
+  const [isTesting, setIsTesting] = React.useState(false)
+  const [testResult, setTestResult] = React.useState<{ success: boolean; message: string; arn?: string } | null>(null)
+
+  const handleTestConnection = async () => {
+    setIsTesting(true)
+    setTestResult(null)
+    const token = localStorage.getItem('token')
+    if (!token) return
+    try {
+      const res = await fetch('/api/v1/organizations/test-credentials', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          access_key_id: formData.accessKeyId,
+          secret_access_key: formData.secretAccessKey,
+          regions: formData.regions
+        })
+      })
+      const body = await res.json()
+      if (res.ok) {
+        setTestResult({
+          success: true,
+          message: body.message,
+          arn: body.arn
+        })
+      } else {
+        setTestResult({
+          success: false,
+          message: body.detail || 'Connection failed.'
+        })
+      }
+    } catch (err: any) {
+      setTestResult({
+        success: false,
+        message: err.message || 'Connection failed.'
+      })
+    } finally {
+      setIsTesting(false)
+    }
+  }
 
   const fetchSettings = async () => {
     const token = localStorage.getItem('token')
@@ -227,6 +270,26 @@ export const SettingsPage: React.FC = () => {
               value={formData.regions}
               onChange={(e) => setFormData({ ...formData, regions: e.target.value })}
             />
+            <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-neutral-700/60">
+              <div className="flex justify-between items-center">
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  className="bg-sky-50 border border-sky-200 text-sky-600 hover:bg-sky-100 font-bold"
+                  onClick={handleTestConnection}
+                  isLoading={isTesting}
+                >
+                  Test AWS Connection
+                </Button>
+              </div>
+              {testResult && (
+                <div className={`p-sm rounded-lg text-xs mt-2 font-medium ${testResult.success ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/30' : 'bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-900/30'}`}>
+                  <div className="font-bold mb-1">{testResult.success ? '✓ Connection Succeeded' : '✗ Connection Failed'}</div>
+                  <div>{testResult.message}</div>
+                  {testResult.arn && <code className="block mt-1 font-mono text-[10px] break-all">{testResult.arn}</code>}
+                </div>
+              )}
+            </div>
           </div>
         </Card>
 

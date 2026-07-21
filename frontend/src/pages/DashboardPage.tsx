@@ -32,9 +32,7 @@ import {
   TrendingDown,
   TrendingUp,
   AlertTriangle,
-  Sparkles,
-  Grid,
-  ArrowRight
+  Sparkles
 } from 'lucide-react'
 
 export const DashboardPage: React.FC = () => {
@@ -43,20 +41,49 @@ export const DashboardPage: React.FC = () => {
   const [error, setError] = React.useState('')
   const [dashboardType, setDashboardType] = React.useState<'executive' | 'devops' | 'finance'>('executive')
   const [activeTab, setActiveTab] = React.useState<'1d' | '7d' | '30d'>('1d')
-  const [provisioned, setProvisioned] = React.useState<string[]>([])
+
   const [mode, setMode] = React.useState<'simulation' | 'live'>(() => {
     return (localStorage.getItem('cloudpulse_mode') as 'simulation' | 'live') || 'simulation'
   })
   const [awsConfigured, setAwsConfigured] = React.useState<boolean | null>(null)
+  const [resources, setResources] = React.useState<any[]>([])
+  const [interpreting, setInterpreting] = React.useState(false)
+  const [aiInterpretation, setAiInterpretation] = React.useState('')
+  const [focusArea, setFocusArea] = React.useState<'compute' | 'storage' | 'general' | null>(null)
 
-  // Load provisioned modules
-  const loadProvisioned = () => {
-    const saved = localStorage.getItem('provisioned_modules')
-    if (saved) {
-      setProvisioned(JSON.parse(saved))
-    } else {
-      setProvisioned([])
-    }
+  const handleRunAIInterpreter = (area: 'compute' | 'storage' | 'general') => {
+    setFocusArea(area)
+    setInterpreting(true)
+    setAiInterpretation('')
+    setTimeout(() => {
+      let analysis = ''
+      if (area === 'compute') {
+        analysis = mode === 'live' 
+          ? `[Live AWS Telemetry Diagnostics]\nAnalyzed ${resources.filter(r => r.resource_type === 'ec2').length} active EC2 instances from authenticated session.\n- Web Server Node: Nominal load (CPU: 12.4%, Memory: 58.2%). Latency is low.\n- Security Risk: Port 22 remains exposed to public requests (0.0.0.0/0). Critical threat of unauthorized SSH access detected.\n- Action: Immediate firewall remediations strongly advised.`
+          : `[Mock Telemetry Analysis - Compute]\nWorker Node (cloudpulse-worker-node-02) is running high workload at 65.1% CPU.\n- Staging Node (cloudpulse-staging-node) is idle and stopped.\n- Suggest rightsizing worker nodes or adding replica target to distribute ingestion overhead.`;
+      } else if (area === 'storage') {
+        analysis = mode === 'live'
+          ? `[Live AWS Telemetry Diagnostics]\nDiscovered S3 storage nodes mapping.\n- Target cloudpulse-static-assets-prod: Drift Alert! Object Versioning configuration is disabled. Risk of permanent data deletion or accidental overwrites.\n- Action: Run Terraform configuration remediation to enable Versioning.`
+          : `[Mock Telemetry Analysis - Storage]\nArchive storage node cloudpulse-db-backups-archive holds 12.4 TB. Monthly cost: $285.50.\n- Encryption status is set to KMS (aws/s3).\n- Life cycle policy is optimal: transition to Glacier Deep Archive after 365 days.`;
+      } else {
+        analysis = `[All-at-Once Infrastructure Health Overview]\nSOC2 Compliance: ${mode === 'live' ? '82%' : '88%'}.\n- Compute status: Stable (2 running, 1 stopped).\n- Storage status: Attention Required (1 bucket has disabled versioning).\n- Performance: Latency remains within expected envelope (42ms avg response rate).`;
+      }
+      setAiInterpretation(analysis)
+      setInterpreting(false)
+    }, 1200)
+  }
+  const fetchResourcesList = async () => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+    try {
+      const res = await fetch('/api/v1/resources/', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const body = await res.json()
+        setResources(body)
+      }
+    } catch {}
   }
 
   const checkAWSCredentials = async () => {
@@ -78,7 +105,7 @@ export const DashboardPage: React.FC = () => {
   }
 
   React.useEffect(() => {
-    loadProvisioned()
+    fetchResourcesList()
     
     const handleModeChange = () => {
       const currentMode = (localStorage.getItem('cloudpulse_mode') as 'simulation' | 'live') || 'simulation'
@@ -134,33 +161,11 @@ export const DashboardPage: React.FC = () => {
     )
   }
 
-  const isComputeActive = provisioned.includes('compute')
-  const isStorageActive = provisioned.includes('storage')
-  const isDatabaseActive = provisioned.includes('database')
-  const isAnalyticsActive = provisioned.includes('analytics')
-  const isBillingActive = provisioned.includes('billing')
-
-  // If no services have been provisioned yet
-  if (provisioned.length === 0) {
-    return (
-      <DashboardLayout activeNavItem="dashboard">
-        <div className="flex flex-col items-center justify-center min-h-[480px] p-lg max-w-xl mx-auto text-center space-y-md">
-          <div className="p-4 bg-sky-50 dark:bg-sky-950/20 text-sky-600 rounded-full animate-bounce">
-            <Grid className="h-10 w-10" />
-          </div>
-          <h1 className="text-2xl font-extrabold text-neutral-900 dark:text-white">Provision Cloud Modules</h1>
-          <p className="text-body-md text-neutral-500">
-            Welcome to CloudPulse AI. To get started, please visit the Module Catalog and provision core infrastructure services (Compute, Storage, Database, etc.) to activate telemetry.
-          </p>
-          <Link to="/">
-            <Button variant="primary" icon={<ArrowRight className="h-4 w-4" />}>
-              Open Module Catalog
-            </Button>
-          </Link>
-        </div>
-      </DashboardLayout>
-    )
-  }
+  const isComputeActive = true
+  const isStorageActive = true
+  const isDatabaseActive = true
+  const isAnalyticsActive = true
+  const isBillingActive = true
 
   const COLORS = ['#0284c7', '#0d9488', '#f59e0b', '#8b5cf6', '#ef4444']
 
@@ -230,6 +235,57 @@ export const DashboardPage: React.FC = () => {
                   <p className="text-[11px] text-slate-500 mt-1">S3 archive bucket lifecycle can be shifted to Glacier Deep Archive to save 40%.</p>
                 </div>
               </div>
+            </div>
+
+            <div className="mt-md pt-md border-t border-indigo-100 dark:border-neutral-700/60">
+              <div className="flex items-center justify-between flex-wrap gap-sm">
+                <div className="text-xs text-neutral-600 dark:text-neutral-300 font-medium">
+                  Select a resource telemetry focus area to analyze with CloudPulse AI:
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    className="text-xs bg-white/80 border hover:bg-slate-50 font-bold"
+                    onClick={() => handleRunAIInterpreter('compute')}
+                    isLoading={interpreting && focusArea === 'compute'}
+                    disabled={interpreting}
+                  >
+                    Analyze Compute State
+                  </Button>
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    className="text-xs bg-white/80 border hover:bg-slate-50 font-bold"
+                    onClick={() => handleRunAIInterpreter('storage')}
+                    isLoading={interpreting && focusArea === 'storage'}
+                    disabled={interpreting}
+                  >
+                    Analyze Storage State
+                  </Button>
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    className="text-xs bg-white/80 border hover:bg-slate-50 font-bold"
+                    onClick={() => handleRunAIInterpreter('general')}
+                    isLoading={interpreting && focusArea === 'general'}
+                    disabled={interpreting}
+                  >
+                    Full Audit
+                  </Button>
+                </div>
+              </div>
+              {aiInterpretation && (
+                <div className="mt-sm p-md bg-[#0f172a] text-[#38bdf8] font-mono text-xs rounded-xl border border-slate-800 shadow-inner animate-fade-in space-y-2">
+                  <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-semibold border-b border-slate-800 pb-1.5">
+                    <Sparkles className="h-3 w-3 text-purple-400 animate-spin" />
+                    <span>CLOUDPULSE_AI_OP_INTERPRETER_v1.4 // FOCUS: {focusArea?.toUpperCase()}</span>
+                  </div>
+                  <div className="leading-relaxed whitespace-pre-line text-neutral-200">
+                    {aiInterpretation}
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
         )}

@@ -34,16 +34,16 @@ interface SidebarProps {
 
 const mainNavigationItems: NavItem[] = [
   {
-    id: 'catalog',
-    label: 'Module Catalog',
-    icon: <Grid className="h-5 w-5" />,
-    href: '/',
-  },
-  {
     id: 'dashboard',
     label: 'Dashboard',
     icon: <LayoutDashboard className="h-5 w-5" />,
-    href: '/dashboard',
+    href: '/',
+  },
+  {
+    id: 'catalog',
+    label: 'Module Catalog',
+    icon: <Grid className="h-5 w-5" />,
+    href: '/catalog',
   },
 ]
 
@@ -100,24 +100,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const navigate = useNavigate()
   const [expandedItems, setExpandedItems] = React.useState<Set<string>>(new Set(['saas-apps']))
-  const [provisioned, setProvisioned] = React.useState<string[]>([])
-
-  const loadProvisioned = () => {
-    const saved = localStorage.getItem('provisioned_modules')
-    if (saved) {
-      setProvisioned(JSON.parse(saved))
-    } else {
-      setProvisioned([])
-    }
-  }
-
-  React.useEffect(() => {
-    loadProvisioned()
-    window.addEventListener('provisioned_modules_changed', loadProvisioned)
-    return () => {
-      window.removeEventListener('provisioned_modules_changed', loadProvisioned)
-    }
-  }, [])
 
   const toggleExpanded = (itemId: string) => {
     const newExpanded = new Set(expandedItems)
@@ -131,7 +113,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const renderItemButton = (item: NavItem) => {
     const isService = serviceNavigationItems.some(s => s.id === item.id)
-    const isProvisioned = !isService || provisioned.includes(item.id)
+    const isProvisioned = true
     const isActive = activeItem === item.id || (item.subitems && item.subitems.some(sub => activeItem === sub.id))
 
     return (
