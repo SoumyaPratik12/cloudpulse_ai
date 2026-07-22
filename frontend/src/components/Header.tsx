@@ -24,6 +24,12 @@ export const Header: React.FC<HeaderProps> = ({
   onMenuToggle,
 }) => {
   const [isProfileOpen, setIsProfileOpen] = React.useState(false)
+  const [isNotificationsOpen, setIsNotificationsOpen] = React.useState(false)
+  const [notifications, setNotifications] = React.useState([
+    { id: 1, text: 'VPC network changes deployed successfully via Terraform.', time: '10m ago', unread: true },
+    { id: 2, text: 'CRITICAL Security SG: Port 22 SSH exposure warning detected.', time: '1h ago', unread: true },
+    { id: 3, text: 'Monthly AWS spend forecast reaches 82% of budget target.', time: '4h ago', unread: false },
+  ])
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false)
   const [mode, setMode] = React.useState<'simulation' | 'live'>(() => {
     return (localStorage.getItem('cloudpulse_mode') as 'simulation' | 'live') || 'simulation'
@@ -69,10 +75,58 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Right side */}
         <div className="flex items-center gap-4">
           {/* Notifications */}
-          <button className="relative p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-smooth">
-            <Bell className="h-5 w-5 text-neutral-600 dark:text-slate-300" />
-            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-neutral-800" />
-          </button>
+          <div className="relative">
+            <button 
+              onClick={() => {
+                setIsNotificationsOpen(!isNotificationsOpen)
+                setIsProfileOpen(false)
+              }}
+              className="relative p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-smooth"
+              aria-label="View notifications"
+            >
+              <Bell className="h-5 w-5 text-neutral-600 dark:text-slate-300" />
+              {notifications.some(n => n.unread) && (
+                <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-neutral-800" />
+              )}
+            </button>
+
+            {isNotificationsOpen && (
+              <div className="absolute right-0 mt-2 w-72 rounded-xl bg-white dark:bg-neutral-800 shadow-xl border border-neutral-200 dark:border-neutral-750 overflow-hidden animate-fade-in z-50">
+                <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-700 flex items-center justify-between bg-slate-50 dark:bg-neutral-750/30">
+                  <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider">Alert Center</span>
+                  {notifications.some(n => n.unread) && (
+                    <button 
+                      onClick={() => setNotifications(prev => prev.map(n => ({ ...n, unread: false })))}
+                      className="text-[10px] text-sky-600 dark:text-sky-400 font-bold hover:underline"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
+                <div className="max-h-[280px] overflow-y-auto divide-y divide-slate-100 dark:divide-neutral-700">
+                  {notifications.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-xs text-slate-400 italic">No notifications active.</div>
+                  ) : (
+                    notifications.map(n => (
+                      <div 
+                        key={n.id} 
+                        onClick={() => setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, unread: false } : x))}
+                        className={`px-4 py-3 hover:bg-slate-50 dark:hover:bg-neutral-700/60 transition-colors cursor-pointer text-left ${n.unread ? 'bg-sky-500/5 dark:bg-sky-500/10' : ''}`}
+                      >
+                        <div className="flex justify-between items-start gap-2">
+                          <span className={`text-[11px] leading-relaxed ${n.unread ? 'text-neutral-800 dark:text-neutral-200 font-semibold' : 'text-slate-500 dark:text-neutral-400'}`}>
+                            {n.text}
+                          </span>
+                          {n.unread && <span className="h-1.5 w-1.5 rounded-full bg-sky-500 flex-shrink-0 mt-1" />}
+                        </div>
+                        <span className="text-[9px] text-slate-400 dark:text-neutral-500 font-medium block mt-1">{n.time}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Dark mode toggle */}
           <button
@@ -95,7 +149,10 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
             
             <button
-              onClick={() => setIsProfileOpen(!isProfileOpen)}
+              onClick={() => {
+                setIsProfileOpen(!isProfileOpen)
+                setIsNotificationsOpen(false)
+              }}
               className="flex items-center gap-2 p-1 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-md transition-smooth"
             >
               <Avatar
