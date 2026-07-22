@@ -1,6 +1,8 @@
 import React from 'react'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
+import { CopilotDrawer } from './CopilotDrawer'
+import { Sparkles } from 'lucide-react'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -15,6 +17,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 }) => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true)
   const [isDarkMode, setIsDarkMode] = React.useState(false)
+  const [isCopilotOpen, setIsCopilotOpen] = React.useState(false)
 
   React.useEffect(() => {
     if (isDarkMode) {
@@ -29,8 +32,11 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     window.location.href = '/login'
   }
 
+  // Use connection ID 1 as default connection workspace in local cockpit view
+  const connectionId = 1
+
   return (
-    <div className="flex h-screen bg-white dark:bg-neutral-900">
+    <div className="flex h-screen bg-white dark:bg-neutral-900 relative">
       {/* Sidebar */}
       <Sidebar
         isOpen={isSidebarOpen}
@@ -54,6 +60,23 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           </div>
         </main>
       </div>
+
+      {/* Floating AI Copilot Trigger Button */}
+      <button
+        onClick={() => setIsCopilotOpen(!isCopilotOpen)}
+        className="fixed bottom-6 right-6 z-40 bg-sky-600 hover:bg-sky-500 text-white rounded-full px-4 py-3 shadow-elevation-3 transition-all duration-300 hover:scale-105 flex items-center gap-2 font-bold text-xs"
+        aria-label="Open AI Copilot Drawer"
+      >
+        <Sparkles className="h-4.5 w-4.5 animate-pulse" />
+        <span className="hidden sm:inline">AI Copilot</span>
+      </button>
+
+      {/* Slide-out Remediation Copilot Drawer */}
+      <CopilotDrawer
+        isOpen={isCopilotOpen}
+        onClose={() => setIsCopilotOpen(false)}
+        connectionId={connectionId}
+      />
     </div>
   )
 }

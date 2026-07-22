@@ -98,6 +98,7 @@ class ResourceResponse(ResourceBase):
     monthly_cost: float
     cpu_utilization: float | None = None
     memory_utilization: float | None = None
+    drifted: bool = False
     last_scanned_at: datetime | None = None
     created_at: datetime
     updated_at: datetime | None = None

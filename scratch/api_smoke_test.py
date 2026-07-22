@@ -11,8 +11,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "b
 
 from main import app
 from database import Base, get_db
-from models import Organization, User
+from models import Organization, User, Resource
 from config import settings
+from datetime import datetime
 settings.environment = "development"
 
 # Test DB Setup
@@ -245,6 +246,62 @@ def run_smoke_test():
         print(f"❌ Webhook deduplication failed on second delivery: {res_del2.text}")
         return False
     print("✅ Webhook deduplicates messages by MessageId successfully!")
+
+    # 12. Remediation Copilot Chat and Action Approvals (FR3.1, FR3.3, FR3.4)
+    print("\n[12/12] Testing Remediation Copilot Chat, Proposals & Approvals...")
+    
+    # Seed a drifted resource first
+    db = TestingSessionLocal()
+    db.query(Resource).delete()
+    drifted_s3 = Resource(
+        organization_id=1,
+        plan_id=1,
+        aws_resource_arn="arn:aws:s3:::s3-assets-bucket",
+        resource_id="res-s3-bucket",
+        resource_type="s3",
+        name="s3-assets-bucket",
+        region="ap-south-1",
+        state="available",
+        monthly_cost=12.0,
+        drifted=True,
+        last_scanned_at=datetime.utcnow()
+    )
+    db.add(drifted_s3)
+    db.commit()
+    db.close()
+    
+    # Request fixing versioning
+    chat_payload = {
+        "connection_id": connection_id,
+        "message": "fix s3 versioning"
+    }
+    res_chat = client.post("/api/v1/copilot/chat", json=chat_payload, headers=headers)
+    if res_chat.status_code != 200:
+        print(f"❌ Copilot chat failed: {res_chat.text}")
+        return False
+        
+    chat_data = res_chat.json()
+    action_prop = chat_data.get("proposed_action")
+    if not action_prop or action_prop.get("tool_name") != "enable_s3_versioning":
+        print(f"❌ Copilot failed to propose enable_s3_versioning: {chat_data}")
+        return False
+    print("✅ Copilot detects drift and proposes enable_s3_versioning task!")
+
+    # Confirm action proposal execution
+    action_id = action_prop.get("id")
+    res_decide = client.post(f"/api/v1/copilot/actions/{action_id}/decide", json={"decision": "confirmed"}, headers=headers)
+    if res_decide.status_code != 200:
+        print(f"❌ Action decision approval failed: {res_decide.text}")
+        return False
+        
+    # Check that s3 resource is no longer drifted in database
+    db = TestingSessionLocal()
+    updated_res = db.query(Resource).filter(Resource.resource_id == "res-s3-bucket").first()
+    if not updated_res or updated_res.drifted:
+        print("❌ S3 versioning remediation didn't update database drifted state!")
+        return False
+    db.close()
+    print("✅ Remediation Copilot executes confirmed action and resolves resource drift state!")
 
     print("\n==================================================")
     print("🎉 ALL API ENDPOINTS PASSED SMOKE TESTS SUCCESSFULLY! 🎉")

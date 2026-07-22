@@ -89,6 +89,7 @@ class Resource(Base):
     monthly_cost = Column(Float, default=0.0)
     cpu_utilization = Column(Float, nullable=True)
     memory_utilization = Column(Float, nullable=True)
+    drifted = Column(Boolean, default=False)
     last_scanned_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -235,3 +236,18 @@ class ProcessedSNSMessage(Base):
 
     message_id = Column(String(100), primary_key=True)
     processed_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class AgentAction(Base):
+    """Immutable log of proposed/executed remediation copilot actions."""
+
+    __tablename__ = "agent_actions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    connection_id = Column(Integer, ForeignKey("aws_connections.id"), nullable=False)
+    tool_name = Column(String(100), nullable=False)
+    parameters_json = Column(Text, nullable=False)  # JSON-encoded parameter dict
+    proposed_at = Column(DateTime(timezone=True), server_default=func.now())
+    user_decision = Column(String(50), default="pending")  # pending, confirmed, rejected
+    decided_at = Column(DateTime(timezone=True), nullable=True)
+    executed_result = Column(Text, nullable=True)  # output logs or exception messages
