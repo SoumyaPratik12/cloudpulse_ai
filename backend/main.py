@@ -76,7 +76,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from database import init_db
-from routes import auth, users, organizations, resources, recommendations, dashboard, health, provisioning, api_v2
+from routes import auth, users, organizations, resources, recommendations, dashboard, health, provisioning, api_v2, webhooks
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +178,7 @@ app.include_router(recommendations.router, prefix="/api/v1", tags=["recommendati
 app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
 app.include_router(provisioning.router, prefix="/api/v1", tags=["provisioning"])
 app.include_router(api_v2.router, prefix="/api/v1", tags=["api_v2"])
+app.include_router(webhooks.router, prefix="/api/v1", tags=["webhooks"])
 
 
 @app.websocket("/api/v1/ws/resources")

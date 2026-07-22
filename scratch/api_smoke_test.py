@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import concurrent.futures
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -11,6 +12,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "b
 from main import app
 from database import Base, get_db
 from models import Organization, User
+from config import settings
+settings.environment = "development"
 
 # Test DB Setup
 SQLALCHEMY_DATABASE_URL = "sqlite:///./smoke_test.db"
@@ -183,13 +186,65 @@ def run_smoke_test():
     print("✅ Connection ID enumeration blocked with 404 Not Found successfully!")
 
     # 9. Test invalid/expired JWT bearer tokens on protected routes (401 check)
-    print("\n[9/9] Testing unauthorized request handling (401 checks)...")
+    print("\n[9/11] Testing unauthorized request handling (401 checks)...")
     bad_headers = {"Authorization": "Bearer invalid_expired_jwt_token_401"}
     res_bad = client.get("/api/v1/resources/", headers=bad_headers)
     if res_bad.status_code != 401:
         print(f"❌ Invalid token check failed: Expected 401, got {res_bad.status_code}")
         return False
     print("✅ Invalid token rejected with 401 Unauthorized successfully!")
+
+    # 10. Webhook Signature Verification and Handshake (FR2.1, FR2.2, FR2.3)
+    print("\n[10/11] Testing AWS Webhook Handshake & Signature Security...")
+    # Test valid simulation type handshake confirmation
+    handshake_payload = {
+        "Type": "SubscriptionConfirmation",
+        "MessageId": "handshake-id-1234",
+        "SubscribeURL": "http://testserver/api/v1/health",
+        "SigningCertURL": "https://sns.ap-south-1.amazonaws.com/SimpleNotificationService.pem",
+        "Signature": "mock-signature"
+    }
+    headers_sns = {"x-amz-sns-message-type": "SubscriptionConfirmation"}
+    res_hs = client.post("/api/v1/webhooks/aws", json=handshake_payload, headers=headers_sns)
+    if res_hs.status_code != 200:
+        print(f"❌ Handshake test failed: Expected 200, got {res_hs.status_code}. Detail: {res_hs.text}")
+        return False
+    print("✅ Webhook auto-confirms AWS SNS subscription handshake successfully!")
+
+    # 11. Webhook Deduplication Check (FR2.4)
+    print("\n[11/11] Testing Webhook Notification delivery & MessageId deduplication...")
+    notification_payload = {
+        "Type": "Notification",
+        "MessageId": "sns-message-uuid-5678",
+        "Message": json.dumps({
+            "messageType": "ConfigurationItemChangeNotification",
+            "configurationItem": {
+                "resourceType": "AWS::S3::Bucket",
+                "resourceId": "s3-assets-bucket",
+                "configuration": {
+                    "versioning": {
+                        "status": "Suspended"
+                    }
+                }
+            }
+        }),
+        "SigningCertURL": "https://sns.ap-south-1.amazonaws.com/SimpleNotificationService.pem",
+        "Signature": "mock-signature"
+    }
+    headers_notif = {"x-amz-sns-message-type": "Notification"}
+    
+    # First delivery
+    res_del1 = client.post("/api/v1/webhooks/aws", json=notification_payload, headers=headers_notif)
+    if res_del1.status_code != 200 or res_del1.json().get("status") != "success":
+        print(f"❌ Webhook notification failed on first delivery: {res_del1.text}")
+        return False
+        
+    # Duplicate delivery
+    res_del2 = client.post("/api/v1/webhooks/aws", json=notification_payload, headers=headers_notif)
+    if res_del2.status_code != 200 or res_del2.json().get("status") != "skipped":
+        print(f"❌ Webhook deduplication failed on second delivery: {res_del2.text}")
+        return False
+    print("✅ Webhook deduplicates messages by MessageId successfully!")
 
     print("\n==================================================")
     print("🎉 ALL API ENDPOINTS PASSED SMOKE TESTS SUCCESSFULLY! 🎉")

@@ -226,3 +226,12 @@ class AIInsight(Base):
     severity = Column(String(50), default="info")  # info, warning, critical
     generated_at = Column(DateTime(timezone=True), server_default=func.now())
     source_metric_ids = Column(String(500), nullable=True)  # comma-separated source IDs
+
+
+class ProcessedSNSMessage(Base):
+    """SNS webhook notification message deduplication."""
+
+    __tablename__ = "processed_sns_messages"
+
+    message_id = Column(String(100), primary_key=True)
+    processed_at = Column(DateTime(timezone=True), server_default=func.now())
