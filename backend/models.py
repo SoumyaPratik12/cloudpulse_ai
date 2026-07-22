@@ -185,7 +185,21 @@ class ProvisioningPlan(Base):
     requirement_text = Column(Text, nullable=False)
     generated_plan_json = Column(Text, nullable=False)
     status = Column(String(50), default="reviewed")  # reviewed, executed
+    terraform_plan_output = Column(Text, nullable=True)
+    state_backend_key = Column(String(255), nullable=True)
+    execution_status = Column(String(50), default="pending")  # pending, planned, applying, applied, failed
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class TerraformStateLock(Base):
+    """Concurrency-safe locking for Terraform executions."""
+
+    __tablename__ = "terraform_state_locks"
+
+    connection_id = Column(Integer, primary_key=True)
+    locked_at = Column(DateTime(timezone=True), server_default=func.now())
+    locked_by_worker_id = Column(String(100), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
 
 
 class ResourceMetric(Base):

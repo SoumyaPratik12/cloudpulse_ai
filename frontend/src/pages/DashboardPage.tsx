@@ -52,6 +52,11 @@ export const DashboardPage: React.FC = () => {
   const [plannedNodes, setPlannedNodes] = React.useState<TopologyNode[] | null>(null)
   const [selectedNode, setSelectedNode] = React.useState<TopologyNode | null>(null)
   const [wsStatus, setWsStatus] = React.useState<'connected' | 'reconnecting' | 'disconnected'>('disconnected')
+  const [activePlanId, setActivePlanId] = React.useState<number | null>(null)
+  const [planDiff, setPlanDiff] = React.useState<string | null>(null)
+  const [terminalLogs, setTerminalLogs] = React.useState<string[]>([])
+  const [showConfirmModal, setShowConfirmModal] = React.useState(false)
+  const [isConsoleOpen, setIsConsoleOpen] = React.useState(false)
   
   const [nodes, setNodes] = React.useState<TopologyNode[]>([
     { id: 'vpc', name: 'VPC Network', type: 'vpc', state: 'live', cpu: 0, cost: 0 },
@@ -96,43 +101,61 @@ export const DashboardPage: React.FC = () => {
     const token = localStorage.getItem('token')
     if (!token) return
     try {
-      const res = await fetch('/api/v1/provisioning/plan', {
+      const res = await fetch('/api/v1/plans', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ requirement })
+        body: JSON.stringify({ requirement_text: requirement })
       })
       if (res.ok) {
         const body = await res.json()
-        setPlannedNodes(body.nodes)
-        setNodes(body.nodes)
+        setActivePlanId(body.plan_id)
+        setPlanDiff(body.terraform_plan_output)
+        setPlannedNodes(body.generated_plan_json)
+        setNodes(body.generated_plan_json)
       }
     } catch {} finally {
       setIsPlanning(false)
     }
   }
 
-  const handleExecutePlan = async () => {
-    if (!plannedNodes) return
+  const handleExecutePlan = () => {
+    if (!activePlanId) return
+    setShowConfirmModal(true)
+  }
+
+  const confirmAndExecutePlan = async () => {
+    if (!activePlanId) return
+    setShowConfirmModal(false)
     setIsProvisioning(true)
+    setTerminalLogs([])
+    setIsConsoleOpen(true)
+    
     const token = localStorage.getItem('token')
     if (!token) return
     try {
-      const res = await fetch('/api/v1/provisioning/execute', {
+      const res = await fetch(`/api/v1/plans/${activePlanId}/execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ requirement, nodes: plannedNodes })
+        }
       })
       if (res.ok) {
         setNodes(prev => prev.map(n => ({ ...n, state: 'provisioning' })))
         setPlannedNodes(null)
+        setPlanDiff(null)
+      } else {
+        const errBody = await res.json()
+        setTerminalLogs(prev => [...prev, `❌ Execution failed: ${errBody.detail || 'Internal Error'}`])
       }
-    } catch {}
+    } catch (e: any) {
+      setTerminalLogs(prev => [...prev, `❌ Connection error: ${e.message}`])
+    } finally {
+      setIsProvisioning(false)
+    }
   }
 
   const fetchDashboardData = async () => {
@@ -245,6 +268,12 @@ export const DashboardPage: React.FC = () => {
         ws.onmessage = (event) => {
           try {
             const message = JSON.parse(event.data)
+            
+            if (message.event === 'TERRAFORM_LOG') {
+              setTerminalLogs(prev => [...prev, message.line])
+              return
+            }
+
             const resources = message.resources || []
             
             if (resources.length > 0) {
@@ -619,24 +648,72 @@ export const DashboardPage: React.FC = () => {
                 </div>
 
                 {plannedNodes && (
-                  <div className="p-md bg-slate-50 dark:bg-neutral-800/40 border border-slate-200/60 dark:border-neutral-850 rounded-xl flex items-center justify-between animate-fade-in">
-                    <div>
-                      <div className="text-xs font-bold text-neutral-800 dark:text-neutral-200">Plan Generated Successfully!</div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">Discovered {plannedNodes.length} required cloud resource mappings in hierarchy tree. Ready to build via CloudFormation.</div>
+                  <div className="space-y-md">
+                    {planDiff && (
+                      <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl font-mono text-xs text-neutral-200 overflow-x-auto max-h-[250px] whitespace-pre leading-relaxed select-text">
+                        <div className="text-[10px] text-slate-500 font-bold border-b border-slate-800 pb-2 mb-2 uppercase tracking-wider">
+                          Terraform Dry-Run Plan Diff Output:
+                        </div>
+                        {planDiff}
+                      </div>
+                    )}
+                    <div className="p-md bg-slate-50 dark:bg-neutral-800/40 border border-slate-200/60 dark:border-neutral-850 rounded-xl flex items-center justify-between animate-fade-in">
+                      <div>
+                        <div className="text-xs font-bold text-neutral-800 dark:text-neutral-200">Plan Generated Successfully!</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">Discovered {plannedNodes.length} required cloud resource mappings in hierarchy tree. Ready to build via Terraform.</div>
+                      </div>
+                      <Button 
+                        variant="primary" 
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white" 
+                        icon={<Plus className="h-4 w-4" />}
+                        onClick={handleExecutePlan}
+                        isLoading={isProvisioning}
+                      >
+                        Execute Provisioning
+                      </Button>
                     </div>
-                    <Button 
-                      variant="primary" 
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white" 
-                      icon={<Plus className="h-4 w-4" />}
-                      onClick={handleExecutePlan}
-                      isLoading={isProvisioning}
-                    >
-                      Execute Provisioning
-                    </Button>
                   </div>
                 )}
               </div>
             </Card>
+
+            {/* Real-time Terraform Execution Console */}
+            {isConsoleOpen && (
+              <Card 
+                className="mt-md rounded-xl border border-slate-900 bg-neutral-950 text-emerald-400 font-mono shadow-xl overflow-hidden" 
+                header={
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <h2 className="text-sm font-bold tracking-wider text-slate-200 uppercase">Live Terraform Log Terminal</h2>
+                    </div>
+                    <button 
+                      onClick={() => setIsConsoleOpen(false)}
+                      className="text-xs text-slate-500 hover:text-slate-300 font-semibold px-2 py-1 border border-slate-800 rounded bg-slate-900/60 transition-colors"
+                    >
+                      Hide Console
+                    </button>
+                  </div>
+                }
+              >
+                <div className="p-md text-xs leading-relaxed max-h-[300px] overflow-y-auto space-y-1 font-mono select-text scrollbar-thin scrollbar-thumb-slate-800">
+                  {terminalLogs.length === 0 ? (
+                    <div className="text-slate-600 italic">Awaiting console connection stream logs...</div>
+                  ) : (
+                    terminalLogs.map((log, idx) => (
+                      <div key={idx} className={
+                        log.startsWith('❌') ? 'text-red-400 font-semibold' :
+                        log.startsWith('🎉') ? 'text-sky-400 font-bold' :
+                        log.startsWith('🚀') ? 'text-purple-400 font-bold' :
+                        log.startsWith('$') ? 'text-slate-500 font-bold' : 'text-neutral-300'
+                      }>
+                        {log}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </Card>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md">
               <StatCard
@@ -948,6 +1025,43 @@ export const DashboardPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Explicit Terraform Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-2xl p-6 max-w-md w-full shadow-2xl mx-4 space-y-4">
+            <div>
+              <h3 className="text-lg font-bold text-neutral-900 dark:text-white">Confirm Infrastructure Provisioning</h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                You are about to execute `terraform apply` on AWS. This will provision real cloud components and incur ongoing AWS usage costs.
+              </p>
+            </div>
+            
+            <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/40 rounded-xl flex items-start gap-2.5">
+              <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <div className="text-[11px] leading-relaxed text-amber-700 dark:text-amber-300 font-medium">
+                <strong>WARNING</strong>: Make sure you have reviewed the generated plan configurations and diff output before proceeding. This action cannot be undone.
+              </div>
+            </div>
+
+            <div className="flex gap-4 justify-end">
+              <Button 
+                variant="secondary" 
+                onClick={() => setShowConfirmModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="primary" 
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                onClick={confirmAndExecutePlan}
+              >
+                Approve & Deploy
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   )
 }

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, BackgroundTasks
 from sqlalchemy.orm import Session
 from database import get_db, SessionLocal
 from models import User, AWSConnection, ProvisioningPlan, Resource, ResourceMetric, AIInsight
@@ -167,9 +167,21 @@ async def generate_provisioning_plan_v2(
         connection_id=conn.id if conn else None,
         requirement_text=plan_data.requirement_text,
         generated_plan_json=json.dumps(nodes),
-        status="reviewed"
+        status="reviewed",
+        execution_status="pending"
     )
     db.add(plan)
+    db.commit()
+    db.refresh(plan)
+
+    # Generate and execute dry-run HCL plan
+    from terraform_executor import generate_terraform_hcl, execute_terraform_plan
+    hcl_code = generate_terraform_hcl(plan.requirement_text, conn.id)
+    plan_output = execute_terraform_plan(conn.id, plan.id, hcl_code, conn.role_arn, conn.external_id)
+
+    plan.terraform_plan_output = plan_output
+    plan.state_backend_key = f"states/connection-{conn.id}/terraform.tfstate"
+    plan.execution_status = "planned"
     db.commit()
     db.refresh(plan)
 
@@ -178,13 +190,16 @@ async def generate_provisioning_plan_v2(
         "connection_id": plan.connection_id,
         "requirement_text": plan.requirement_text,
         "generated_plan_json": nodes,
-        "status": plan.status
+        "terraform_plan_output": plan.terraform_plan_output,
+        "status": plan.status,
+        "execution_status": plan.execution_status
     }
 
 
 @router.post("/plans/{id}/execute")
 async def execute_provisioning_plan_v2(
     id: int,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -209,8 +224,9 @@ async def execute_provisioning_plan_v2(
     # Perform atomic update to prevent concurrent race execution
     result = db.query(ProvisioningPlan).filter(
         ProvisioningPlan.id == id,
-        ProvisioningPlan.status == "reviewed"
-    ).update({"status": "executed"})
+        ProvisioningPlan.status == "reviewed",
+        ProvisioningPlan.execution_status == "planned"
+    ).update({"status": "executing", "execution_status": "applying"})
     db.commit()
 
     # If atomic update returned 0 matched rows, inspect the failure reason (already executed vs not found/unauthorized)
@@ -245,8 +261,8 @@ async def execute_provisioning_plan_v2(
         res = Resource(
             organization_id=current_user.organization_id,
             plan_id=plan.id,
-            aws_resource_arn=f"arn:aws:{node['type']}:ap-south-1:123456789012:resource/{node['id']}-{int(datetime.utcnow().timestamp()) % 10000}",
-            resource_id=f"res-{node['type']}-{int(datetime.utcnow().timestamp()) % 10000}",
+            aws_resource_arn=f"arn:aws:{node['type']}:ap-south-1:123456789012:resource/{node['id']}-{plan.id}",
+            resource_id=f"res-{node['type']}-{plan.id}",
             resource_type=node["type"],
             name=node["name"],
             region="ap-south-1",
@@ -256,8 +272,29 @@ async def execute_provisioning_plan_v2(
             last_scanned_at=datetime.utcnow()
         )
         db.add(res)
-    
     db.commit()
+
+    # Trigger async apply using the engine of the request session
+    import uuid
+    from sqlalchemy.orm import sessionmaker
+    from terraform_executor import execute_terraform_apply_async, generate_terraform_hcl
+    
+    session_factory = sessionmaker(bind=db.get_bind())
+    worker_id = str(uuid.uuid4())
+    hcl_code = generate_terraform_hcl(plan.requirement_text, conn.id)
+
+    background_tasks.add_task(
+        execute_terraform_apply_async,
+        session_factory,
+        conn.id,
+        plan.id,
+        hcl_code,
+        worker_id,
+        conn.role_arn,
+        conn.external_id,
+        current_user.organization_id
+    )
+
     return {
         "status": "success",
         "message": f"Successfully launched provisioning workflow for plan ID: {plan.id}"
