@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     app_name: str = "CloudPulse AI"
     app_version: str = "0.1.0"
     debug: bool = False
+    environment: str = "production"
     log_level: str = "INFO"
 
     # Database

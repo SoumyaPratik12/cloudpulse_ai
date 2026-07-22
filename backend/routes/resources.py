@@ -3,7 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from database import get_db
-from models import User, Resource
+from models import User, Resource, AWSConnection
 from schemas import ResourceResponse
 from auth import get_current_user
 
@@ -19,6 +19,16 @@ async def list_resources(
     db: Session = Depends(get_db),
 ):
     """List resources for the current organization."""
+    # Check if connection is active/revoked
+    conn = db.query(AWSConnection).filter(
+        AWSConnection.organization_id == current_user.organization_id
+    ).order_by(AWSConnection.id.desc()).first()
+
+    if conn and conn.status == "revoked":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="AWS Connection is not active or has been revoked."
+        )
     # Auto-transition provisioning resources to running/active/available after 10 seconds
     from datetime import datetime, timedelta
     provisioning_res = db.query(Resource).filter(
@@ -58,15 +68,28 @@ async def get_resource(
     db: Session = Depends(get_db),
 ):
     """Get resource details."""
-    resource = db.query(Resource).filter(
-        Resource.id == resource_id,
-        Resource.organization_id == current_user.organization_id,
-    ).first()
+    resource = db.query(Resource).filter(Resource.id == resource_id).first()
 
     if not resource:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Resource not found",
+        )
+        
+    if resource.organization_id != current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Resource not found",
+        )
+        
+    conn = db.query(AWSConnection).filter(
+        AWSConnection.organization_id == current_user.organization_id
+    ).order_by(AWSConnection.id.desc()).first()
+
+    if conn and conn.status == "revoked":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="AWS Connection is not active or has been revoked."
         )
 
     return resource

@@ -27,7 +27,7 @@ class UserResponse(UserBase):
     is_admin: bool
     organization_id: int
     created_at: datetime
-    updated_at: datetime
+    updated_at: datetime | None = None
 
     class Config:
         from_attributes = True

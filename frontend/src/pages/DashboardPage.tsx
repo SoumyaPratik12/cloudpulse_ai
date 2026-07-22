@@ -51,6 +51,7 @@ export const DashboardPage: React.FC = () => {
   const [isProvisioning, setIsProvisioning] = React.useState(false)
   const [plannedNodes, setPlannedNodes] = React.useState<TopologyNode[] | null>(null)
   const [selectedNode, setSelectedNode] = React.useState<TopologyNode | null>(null)
+  const [wsStatus, setWsStatus] = React.useState<'connected' | 'reconnecting' | 'disconnected'>('disconnected')
   
   const [nodes, setNodes] = React.useState<TopologyNode[]>([
     { id: 'vpc', name: 'VPC Network', type: 'vpc', state: 'live', cpu: 0, cost: 0 },
@@ -196,57 +197,122 @@ export const DashboardPage: React.FC = () => {
     }
   }, [mode])
 
-  // Poll resources to transition state from provisioning to live
-  // Real-time EventBridge/AWS Config push client via WebSockets
+  // Real-time EventBridge/AWS Config push client via WebSockets with backoff reconnect
   React.useEffect(() => {
-    const wsUrl = `ws://${window.location.hostname}:8000/api/v1/ws/resources`
-    const ws = new WebSocket(wsUrl)
+    let ws: WebSocket | null = null
+    let reconnectTimeout: any = null
+    let currentBackoff = 1000
+    const maxBackoff = 30000
+    let isMounted = true
 
-    ws.onopen = () => {
-      console.log('Connected to EventBridge WebSocket Stream')
-    }
+    const connectWebSocket = async () => {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        setWsStatus('disconnected')
+        return
+      }
 
-    ws.onmessage = (event) => {
+      // Re-verify token expiration on reconnect
       try {
-        const message = JSON.parse(event.data)
-        const resources = message.resources || []
-        
-        if (resources.length > 0) {
-          setNodes(prev => prev.map(n => {
-            const matching = resources.find((r: any) => r.resource_type === n.type)
-            if (matching) {
-              let state: any = 'live'
-              if (matching.state === 'provisioning') state = 'provisioning'
-              else if (matching.state === 'stopped') state = 'degraded'
-              
-              return {
-                ...n,
-                state,
-                cpu: matching.cpu !== undefined ? matching.cpu : n.cpu,
-                cost: matching.cost !== undefined ? matching.cost : n.cost
-              }
-            }
-            return n
-          }))
-          
-          const anyProvisioning = resources.some((r: any) => r.state === 'provisioning')
-          if (!anyProvisioning) {
-            setIsProvisioning(false)
-          }
+        const checkRes = await fetch('/api/v1/organizations/credentials', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (checkRes.status === 401) {
+          console.warn('JWT expired, redirecting to login.')
+          localStorage.removeItem('token')
+          window.location.href = '/login'
+          return
         }
       } catch (err) {
-        console.error('Error parsing EventBridge push message', err)
+        console.error('Failed to verify token during WS reconnect check', err)
+      }
+
+      if (!isMounted) return
+
+      const wsUrl = `ws://${window.location.hostname}:8000/api/v1/ws/resources`
+      console.log(`Connecting to EventBridge WebSocket Stream... (Backoff: ${currentBackoff}ms)`)
+      setWsStatus('reconnecting')
+
+      try {
+        ws = new WebSocket(wsUrl)
+
+        ws.onopen = () => {
+          console.log('Connected to EventBridge WebSocket Stream')
+          setWsStatus('connected')
+          currentBackoff = 1000 // reset backoff
+        }
+
+        ws.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data)
+            const resources = message.resources || []
+            
+            if (resources.length > 0) {
+              setNodes(prev => prev.map(n => {
+                const matching = resources.find((r: any) => r.resource_type === n.type)
+                if (matching) {
+                  let state: any = 'live'
+                  if (matching.state === 'provisioning') state = 'provisioning'
+                  else if (matching.state === 'stopped') state = 'degraded'
+                  
+                  return {
+                    ...n,
+                    state,
+                    cpu: matching.cpu !== undefined ? matching.cpu : n.cpu,
+                    cost: matching.cost !== undefined ? matching.cost : n.cost
+                  }
+                }
+                return n
+              }))
+              
+              const anyProvisioning = resources.some((r: any) => r.state === 'provisioning')
+              if (!anyProvisioning) {
+                setIsProvisioning(false)
+              }
+            }
+          } catch (err) {
+            console.error('Error parsing EventBridge push message', err)
+          }
+        }
+
+        ws.onclose = () => {
+          if (!isMounted) return
+          console.log('EventBridge WebSocket Stream closed. Retrying...')
+          setWsStatus('reconnecting')
+          
+          reconnectTimeout = setTimeout(() => {
+            currentBackoff = Math.min(currentBackoff * 2, maxBackoff)
+            connectWebSocket()
+          }, currentBackoff)
+        }
+
+        ws.onerror = (err) => {
+          console.error('WebSocket error:', err)
+          if (ws) {
+            ws.close()
+          }
+        }
+      } catch (e) {
+        console.error('Failed to create WebSocket instance', e)
+        reconnectTimeout = setTimeout(() => {
+          currentBackoff = Math.min(currentBackoff * 2, maxBackoff)
+          connectWebSocket()
+        }, currentBackoff)
       }
     }
 
-    ws.onclose = () => {
-      console.log('EventBridge WebSocket Stream closed')
-    }
+    connectWebSocket()
 
     return () => {
-      ws.close()
+      isMounted = false
+      if (ws) {
+        ws.close()
+      }
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout)
+      }
     }
-  }, [])
+  }, [mode])
 
   if (loading) {
     return (
@@ -269,8 +335,25 @@ export const DashboardPage: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-md border-b border-slate-200 dark:border-neutral-700 pb-md">
           <div>
             <h1 className="text-2xl font-bold text-neutral-900 dark:text-white capitalize">{dashboardType} Operations Cockpit</h1>
-            <p className="text-body-md text-neutral-600 dark:text-neutral-400 font-semibold flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" /> CloudPulse Ops Console Active
+            <p className="text-body-sm text-neutral-600 dark:text-neutral-400 font-semibold flex items-center gap-2 flex-wrap">
+              <span className="flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>CloudPulse Ops Active</span>
+              </span>
+              <span className="text-slate-300 dark:text-neutral-700">|</span>
+              <span className="flex items-center gap-1">
+                <span className={`h-2 w-2 rounded-full ${
+                  wsStatus === 'connected' ? 'bg-emerald-500' :
+                  wsStatus === 'reconnecting' ? 'bg-amber-500 animate-pulse' : 'bg-red-500'
+                }`} />
+                <span className={`text-[11px] uppercase tracking-wider font-bold ${
+                  wsStatus === 'connected' ? 'text-emerald-600 dark:text-emerald-400' :
+                  wsStatus === 'reconnecting' ? 'text-amber-500' : 'text-red-500 animate-pulse'
+                }`}>
+                  {wsStatus === 'connected' ? 'Live Telemetry Active' :
+                   wsStatus === 'reconnecting' ? 'Reconnecting to stream...' : 'Stream Offline'}
+                </span>
+              </span>
             </p>
           </div>
           <div className="flex bg-slate-100 dark:bg-neutral-800 rounded-xl p-1 text-sm border border-slate-200/60 dark:border-neutral-700">

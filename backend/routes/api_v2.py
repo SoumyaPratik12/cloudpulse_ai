@@ -10,6 +10,7 @@ import json
 import boto3
 import asyncio
 from websocket_manager import manager
+from config import settings
 
 router = APIRouter(prefix="", tags=["api_v2"])
 
@@ -65,24 +66,36 @@ async def verify_connection_status(
     db: Session = Depends(get_db)
 ):
     """Verify AssumeRole connectivity for a connection ID using STS."""
-    conn = db.query(AWSConnection).filter(
-        AWSConnection.id == id,
-        AWSConnection.organization_id == current_user.organization_id
-    ).first()
+    # Scoped 403 vs 404 security rule lookup
+    conn = db.query(AWSConnection).filter(AWSConnection.id == id).first()
     
     if not conn:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Connection connection ID not found"
+            detail="Connection not found"
+        )
+        
+    if conn.organization_id != current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Connection not found"
+        )
+        
+    if conn.status == "revoked":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="AWS Connection is not active or has been revoked."
         )
 
-    # Developer bypass for mock ARNs
+    # Developer bypass for mock ARNs with defense-in-depth checks
     if "mock" in conn.role_arn:
-        return {
-            "status": "active",
-            "message": "Successfully assumed IAM role (Mock).",
-            "identity_arn": conn.role_arn
-        }
+        assert settings.environment != "production", "CRITICAL SECURITY FAULT: Mock bypass invoked in production environment."
+        if settings.environment == "development":
+            return {
+                "status": "active",
+                "message": "Successfully assumed IAM role (Mock).",
+                "identity_arn": conn.role_arn
+            }
 
     try:
         sts_client = boto3.client("sts")
@@ -133,11 +146,22 @@ async def generate_provisioning_plan_v2(
     else:
         nodes.append({"id": "ec2", "name": "EC2 Autoscale Group", "type": "ec2", "dependencies": ["vpc", "alb"], "state": "planned", "cost": 15.20})
 
-    # Fetch active connection for this organization
+    # Fetch active connection for this organization and validate status
     conn = db.query(AWSConnection).filter(
-        AWSConnection.organization_id == current_user.organization_id,
-        AWSConnection.status == "connected"
-    ).first()
+        AWSConnection.organization_id == current_user.organization_id
+    ).order_by(AWSConnection.id.desc()).first()
+
+    if not conn:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Active AWS connection not found."
+        )
+        
+    if conn.status == "revoked":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="AWS Connection is not active or has been revoked."
+        )
 
     plan = ProvisioningPlan(
         connection_id=conn.id if conn else None,
@@ -165,15 +189,52 @@ async def execute_provisioning_plan_v2(
     db: Session = Depends(get_db)
 ):
     """Trigger parallel cloud provisioning sequence for the generated plan ID."""
-    plan = db.query(ProvisioningPlan).filter(ProvisioningPlan.id == id).first()
-    if not plan:
+    # Validate connection status
+    conn = db.query(AWSConnection).filter(
+        AWSConnection.organization_id == current_user.organization_id
+    ).order_by(AWSConnection.id.desc()).first()
+
+    if not conn:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Provisioning plan not found"
+            detail="Active AWS connection not found."
         )
-    
-    plan.status = "executed"
-    db.add(plan)
+        
+    if conn.status == "revoked":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="AWS Connection is not active or has been revoked."
+        )
+
+    # Perform atomic update to prevent concurrent race execution
+    result = db.query(ProvisioningPlan).filter(
+        ProvisioningPlan.id == id,
+        ProvisioningPlan.status == "reviewed"
+    ).update({"status": "executed"})
+    db.commit()
+
+    # If atomic update returned 0 matched rows, inspect the failure reason (already executed vs not found/unauthorized)
+    if result == 0:
+        existing = db.query(ProvisioningPlan).filter(ProvisioningPlan.id == id).first()
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Provisioning plan not found"
+            )
+            
+        plan_conn = db.query(AWSConnection).filter(AWSConnection.id == existing.connection_id).first()
+        if not plan_conn or plan_conn.organization_id != current_user.organization_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Provisioning plan not found"
+            )
+            
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Plan is already executing or has been executed."
+        )
+
+    plan = db.query(ProvisioningPlan).filter(ProvisioningPlan.id == id).first()
     
     # Delete old resources for organization to ensure clean visual transition
     db.query(Resource).filter(Resource.organization_id == current_user.organization_id).delete()
@@ -210,15 +271,28 @@ async def get_resource_details_v2(
     db: Session = Depends(get_db)
 ):
     """Retrieve full details drill-down for a specific resource ID (CloudWatch, tags, IAM)."""
-    res = db.query(Resource).filter(
-        Resource.id == id,
-        Resource.organization_id == current_user.organization_id
-    ).first()
+    res = db.query(Resource).filter(Resource.id == id).first()
     
     if not res:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Resource not found"
+        )
+        
+    if res.organization_id != current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Resource not found"
+        )
+        
+    conn = db.query(AWSConnection).filter(
+        AWSConnection.organization_id == current_user.organization_id
+    ).order_by(AWSConnection.id.desc()).first()
+
+    if conn and conn.status == "revoked":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="AWS Connection is not active or has been revoked."
         )
 
     # Discovered metrics
