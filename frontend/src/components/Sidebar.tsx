@@ -13,7 +13,8 @@ import {
   Lock,
   ShieldAlert,
   Cloud,
-  HelpCircle
+  HelpCircle,
+  Settings
 } from 'lucide-react'
 
 interface NavItem {
@@ -178,7 +179,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span className="text-xl font-bold tracking-tight text-white">CloudPulse</span>
         </div>
 
-        <nav className="p-4 space-y-6">
+        <nav className="p-4 pb-28 space-y-6">
           {/* Main Group */}
           <div className="space-y-1">
             {mainNavigationItems.map((item) => (
@@ -229,9 +230,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </nav>
 
-        {/* Support section */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-800 bg-[#0b0f19]">
-          <button className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg text-body-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors duration-200">
+        {/* Settings & Support footer section */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-800 bg-[#0b0f19] space-y-1">
+          <button 
+            onClick={() => {
+              onNavigate?.('settings')
+              navigate('/settings')
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-body-md transition-all duration-200 ${
+              activeItem === 'settings'
+                ? 'bg-sky-600 text-white font-semibold shadow-md shadow-sky-600/20'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            <Settings className="h-5 w-5" />
+            <span>Settings</span>
+          </button>
+          <button className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-body-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors duration-200">
             <HelpCircle className="h-5 w-5 text-slate-400" />
             <span>Help & Support</span>
           </button>
