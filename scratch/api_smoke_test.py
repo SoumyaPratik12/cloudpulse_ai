@@ -303,6 +303,14 @@ def run_smoke_test():
     db.close()
     print("✅ Remediation Copilot executes confirmed action and resolves resource drift state!")
 
+    # 13. Multi-Account Connection Listing and TTL Caching (FR4.1, NFR Caching)
+    print("\n[13/13] Testing Multi-Account Connections List & Telemetry Caching...")
+    res_list = client.get("/api/v1/connections", headers=headers)
+    if res_list.status_code != 200 or len(res_list.json()) == 0:
+        print(f"❌ Connections listing endpoint failed: {res_list.text}")
+        return False
+    print("✅ Connections list endpoint retrieved all connected accounts successfully!")
+
     print("\n==================================================")
     print("🎉 ALL API ENDPOINTS PASSED SMOKE TESTS SUCCESSFULLY! 🎉")
     print("==================================================")

@@ -34,6 +34,41 @@ export const Header: React.FC<HeaderProps> = ({
   const [mode, setMode] = React.useState<'simulation' | 'live'>(() => {
     return (localStorage.getItem('cloudpulse_mode') as 'simulation' | 'live') || 'simulation'
   })
+  const [connections, setConnections] = React.useState<any[]>([])
+  const [selectedConnection, setSelectedConnection] = React.useState<any>(null)
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = React.useState(false)
+
+  const fetchConnections = async () => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+    try {
+      const res = await fetch('/api/v1/connections', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setConnections(data)
+        if (data.length > 0) {
+          const stored = localStorage.getItem('cloudpulse_connection_id')
+          const found = data.find((c: any) => c.id.toString() === stored)
+          const active = found || data[0]
+          setSelectedConnection(active)
+          localStorage.setItem('cloudpulse_connection_id', active.id.toString())
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load accounts list', err)
+    }
+  }
+
+  React.useEffect(() => {
+    fetchConnections()
+    const handleAccountChange = () => {
+      fetchConnections()
+    }
+    window.addEventListener('cloudpulse_account_changed', handleAccountChange)
+    return () => window.removeEventListener('cloudpulse_account_changed', handleAccountChange)
+  }, [])
 
   const toggleMode = () => {
     const newMode = mode === 'simulation' ? 'live' : 'simulation'
@@ -66,6 +101,47 @@ export const Header: React.FC<HeaderProps> = ({
             <span className={`h-2 w-2 rounded-full ${mode === 'simulation' ? 'bg-amber-500' : 'bg-emerald-500 animate-ping'}`} />
             {mode === 'simulation' ? 'Simulation Mode' : 'Live AWS Connected'}
           </button>
+
+          {/* AWS Account Switcher */}
+          {connections.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => setIsAccountMenuOpen(!isAccountMenuOpen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-slate-50 dark:bg-neutral-800 text-slate-700 dark:text-neutral-200 border border-slate-200 dark:border-neutral-700 hover:bg-slate-100 dark:hover:bg-neutral-700 transition-all shadow-sm"
+              >
+                <span>AWS: {selectedConnection ? selectedConnection.role_arn.split('::')[1]?.split(':')[0] || `Account ${selectedConnection.id}` : 'Connecting...'}</span>
+                <span className="text-[9px] text-slate-400">({selectedConnection?.region || 'Global'})</span>
+              </button>
+              
+              {isAccountMenuOpen && (
+                <div className="absolute left-0 mt-1.5 w-64 rounded-xl bg-white dark:bg-neutral-800 shadow-lg border border-slate-200 dark:border-neutral-700 overflow-hidden z-50">
+                  <div className="px-4 py-2 border-b border-slate-100 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-750/30">
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-neutral-500 uppercase tracking-wider">Switch AWS Account Workspace</span>
+                  </div>
+                  <div className="divide-y divide-slate-100 dark:divide-neutral-700 max-h-48 overflow-y-auto">
+                    {connections.map(c => {
+                      const accountId = c.role_arn.split('::')[1]?.split(':')[0] || `Account ID: ${c.id}`;
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() => {
+                            setSelectedConnection(c)
+                            localStorage.setItem('cloudpulse_connection_id', c.id.toString())
+                            setIsAccountMenuOpen(false)
+                            window.dispatchEvent(new Event('cloudpulse_account_changed'))
+                          }}
+                          className={`w-full text-left px-4 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-neutral-700/60 transition-colors flex flex-col ${selectedConnection?.id === c.id ? 'bg-sky-500/5 text-sky-600 dark:text-sky-400 font-semibold' : 'text-slate-700 dark:text-neutral-300'}`}
+                        >
+                          <span>{accountId}</span>
+                          <span className="text-[9px] text-slate-400 mt-0.5">Region: {c.region} ({c.status})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="md:hidden flex items-center gap-2">
           <Cloud className="h-6 w-6 text-sky-500" />

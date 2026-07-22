@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from database import get_db, SessionLocal
 from models import User, AWSConnection, ProvisioningPlan, Resource, ResourceMetric, AIInsight
 from auth import get_current_user
+from metrics_cache import cache_aws_metrics
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -59,7 +60,26 @@ async def initiate_aws_connection(
     }
 
 
+@router.get("/connections")
+async def list_aws_connections(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """List all connected AWS accounts for the organization."""
+    connections = db.query(AWSConnection).filter(
+        AWSConnection.organization_id == current_user.organization_id
+    ).all()
+    return [{
+        "id": c.id,
+        "role_arn": c.role_arn,
+        "external_id": c.external_id,
+        "region": c.region,
+        "status": c.status
+    } for c in connections]
+
+
 @router.get("/connections/{id}/status")
+@cache_aws_metrics(ttl_seconds=60)
 async def verify_connection_status(
     id: int,
     current_user: User = Depends(get_current_user),

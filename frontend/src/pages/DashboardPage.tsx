@@ -57,7 +57,8 @@ export const DashboardPage: React.FC = () => {
   const [terminalLogs, setTerminalLogs] = React.useState<string[]>([])
   const [showConfirmModal, setShowConfirmModal] = React.useState(false)
   const [isConsoleOpen, setIsConsoleOpen] = React.useState(false)
-  
+  const [selectedRegion, setSelectedRegion] = React.useState<'all' | 'ap-south-1' | 'us-east-1' | 'eu-central-1'>('all')
+
   const [nodes, setNodes] = React.useState<TopologyNode[]>([
     { id: 'vpc', name: 'VPC Network', type: 'vpc', state: 'live', cpu: 0, cost: 0 },
     { id: 'iam', name: 'IAM Scoped Role', type: 'iam', state: 'live', cpu: 0, cost: 0 },
@@ -66,6 +67,22 @@ export const DashboardPage: React.FC = () => {
     { id: 's3', name: 'S3 Assets Storage', type: 's3', state: 'live', cpu: 0, cost: 32.99, drifted: true },
     { id: 'rds', name: 'RDS DB Instance', type: 'rds', state: 'live', cpu: 8.5, cost: 48.00 },
   ])
+
+  const filteredNodes = React.useMemo(() => {
+    if (selectedRegion === 'all') return nodes
+    return nodes.filter(n => {
+      if (selectedRegion === 'ap-south-1') {
+        return ['vpc', 'iam', 'alb', 'rds', 'ec2'].includes(n.type)
+      }
+      if (selectedRegion === 'us-east-1') {
+        return ['s3', 'ec2'].includes(n.type)
+      }
+      if (selectedRegion === 'eu-central-1') {
+        return ['lambda', 'vpc'].includes(n.type)
+      }
+      return true
+    })
+  }, [nodes, selectedRegion])
 
   const [interpreting, setInterpreting] = React.useState(false)
   const [aiInterpretation, setAiInterpretation] = React.useState('')
@@ -746,8 +763,66 @@ export const DashboardPage: React.FC = () => {
               />
             </div>
 
+            {/* Geo Overview Rollup per Region (FR4.3) */}
+            <Card className="mt-md rounded-xl" header={<h2 className="text-h4 font-bold text-neutral-800 dark:text-white">Geo Region Overview Rollup</h2>}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-md mt-md">
+                {[
+                  { region: 'ap-south-1 (Mumbai)', status: 'Operational', cost: 85.70, compliance: 'Compliant', health: 'Healthy', color: 'border-emerald-500' },
+                  { region: 'us-east-1 (N. Virginia)', status: 'Drift Warning', cost: 48.19, compliance: '1 Policy Drift', health: 'Degraded', color: 'border-amber-500' },
+                  { region: 'eu-central-1 (Frankfurt)', status: 'Unused', cost: 0.00, compliance: 'Compliant', health: 'Healthy', color: 'border-slate-200 dark:border-neutral-700' },
+                  { region: 'us-west-2 (Oregon)', status: 'Unused', cost: 0.00, compliance: 'Compliant', health: 'Healthy', color: 'border-slate-200 dark:border-neutral-700' }
+                ].map(regInfo => {
+                  let displayCost = regInfo.cost
+                  let displayCompliance = regInfo.compliance
+                  let displayHealth = regInfo.health
+                  let displayStatus = regInfo.status
+                  let borderColor = regInfo.color
+
+                  if (regInfo.region.startsWith('ap-south-1')) {
+                    const apCost = nodes.filter(n => ['vpc', 'iam', 'alb', 'rds', 'ec2'].includes(n.type)).reduce((acc, curr) => acc + (curr.cost || 0), 0)
+                    displayCost = apCost
+                    const hasDrift = nodes.filter(n => ['vpc', 'iam', 'alb', 'rds', 'ec2'].includes(n.type)).some(n => n.drifted)
+                    displayCompliance = hasDrift ? '1 Policy Drift' : 'Compliant'
+                    displayHealth = hasDrift ? 'Degraded' : 'Healthy'
+                    displayStatus = hasDrift ? 'Drift Warning' : 'Operational'
+                    borderColor = hasDrift ? 'border-amber-500' : 'border-emerald-500'
+                  } else if (regInfo.region.startsWith('us-east-1')) {
+                    const usCost = nodes.filter(n => ['s3', 'ec2'].includes(n.type)).reduce((acc, curr) => acc + (curr.cost || 0), 0)
+                    displayCost = usCost
+                    const hasDrift = nodes.filter(n => ['s3', 'ec2'].includes(n.type)).some(n => n.drifted)
+                    displayCompliance = hasDrift ? '1 Drift Alert' : 'Compliant'
+                    displayHealth = hasDrift ? 'Degraded' : 'Healthy'
+                    displayStatus = hasDrift ? 'Drift Warning' : 'Operational'
+                    borderColor = hasDrift ? 'border-amber-500' : 'border-emerald-500'
+                  }
+
+                  return (
+                    <div key={regInfo.region} className={`p-4 bg-slate-50 dark:bg-neutral-800/40 rounded-xl border-l-4 ${borderColor} text-xs flex flex-col justify-between h-28 shadow-sm`}>
+                      <div className="flex justify-between items-start">
+                        <span className="font-bold text-slate-800 dark:text-neutral-200">{regInfo.region}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                          displayStatus === 'Operational' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
+                          displayStatus === 'Drift Warning' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-slate-200 text-slate-500 dark:bg-neutral-700'
+                        }`}>{displayStatus}</span>
+                      </div>
+                      <div className="flex justify-between items-end mt-2 pt-2 border-t border-slate-100 dark:border-neutral-700/60">
+                        <div>
+                          <span className="text-slate-400 block mb-0.5">Run Rate</span>
+                          <span className="text-neutral-800 dark:text-white font-bold text-sm">${displayCost.toFixed(2)}/mo</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-slate-400 block mb-0.5">Compliance</span>
+                          <span className={`font-semibold ${displayHealth === 'Healthy' ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600'}`}>{displayCompliance}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </Card>
+
             {/* Performance charts and Topology Map */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-md">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-md mt-md">
               {/* Analytics correlation graph */}
               <Card className="lg:col-span-2 rounded-xl" header={<h2 className="text-h4 font-bold text-neutral-800 dark:text-white">Performance Correlation (Latency vs DB Queries)</h2>}>
                 <div className="h-[280px] w-full mt-md">
@@ -784,8 +859,26 @@ export const DashboardPage: React.FC = () => {
               </Card>
 
               {/* Topology Map */}
-              <Card className="rounded-xl" header={<h2 className="text-h4 font-bold text-neutral-800 dark:text-white">CloudPulse Topology Canvas</h2>}>
-                <TopologyMap nodes={nodes} onNodeClick={(n) => setSelectedNode(n)} />
+              <Card 
+                className="rounded-xl" 
+                header={
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <h2 className="text-h4 font-bold text-neutral-800 dark:text-white">Topology Canvas</h2>
+                    <div className="flex items-center gap-1 bg-slate-50 dark:bg-neutral-850 p-0.5 rounded-lg border border-slate-100 dark:border-neutral-700">
+                      {(['all', 'ap-south-1', 'us-east-1', 'eu-central-1'] as const).map(reg => (
+                        <button
+                          key={reg}
+                          onClick={() => setSelectedRegion(reg)}
+                          className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase transition-all ${selectedRegion === reg ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                        >
+                          {reg === 'all' ? 'All' : reg.split('-')[1] || reg}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                }
+              >
+                <TopologyMap nodes={filteredNodes} onNodeClick={(n) => setSelectedNode(n)} />
               </Card>
             </div>
 
