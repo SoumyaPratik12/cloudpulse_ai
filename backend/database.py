@@ -33,6 +33,32 @@ def init_db():
     import models
     Base.metadata.create_all(bind=engine)
 
+    # Install SQLite triggers to block UPDATE/DELETE on agent_actions table (SEC8)
+    from sqlalchemy import text
+    if "sqlite" in settings.database_url or "sqlite" in str(engine.url):
+        with engine.connect() as connection:
+            try:
+                existing = connection.execute(text("SELECT name FROM sqlite_master WHERE type='trigger' AND name='block_update_agent_actions'")).fetchone()
+                if not existing:
+                    connection.execute(text("""
+                        CREATE TRIGGER block_update_agent_actions
+                        BEFORE UPDATE ON agent_actions
+                        BEGIN
+                            SELECT RAISE(FAIL, 'Updates are not allowed on the append-only table agent_actions.');
+                        END;
+                    """))
+                    connection.execute(text("""
+                        CREATE TRIGGER block_delete_agent_actions
+                        BEFORE DELETE ON agent_actions
+                        BEGIN
+                            SELECT RAISE(FAIL, 'Deletes are not allowed on the append-only table agent_actions.');
+                        END;
+                    """))
+                    # Commit transaction to ensure triggers are stored
+                    connection.commit()
+            except Exception as trigger_err:
+                print(f"Trigger setup error (expected if already run): {trigger_err}")
+
     # Seed default user and organization if empty
     from sqlalchemy.orm import sessionmaker
     Session = sessionmaker(bind=engine)

@@ -49,9 +49,16 @@ def get_canonical_string(data: dict) -> bytes:
 
 def verify_sns_signature(payload: dict) -> bool:
     """Verify Amazon SNS message signature authenticity."""
-    if settings.environment == "development":
-        logger.info("Development Mode active: Bypassing real SNS certificate signature verification.")
-        return True
+    # Production environment check: Ensure mock bypass paths are completely unreachable (SEC2)
+    if settings.environment == "production":
+        # Raise AssertionError if mock indicator is present or signature properties are missing
+        if "mock" in payload.get("SigningCertURL", "") or "mock" in payload.get("TopicArn", "") or not payload.get("Signature"):
+            raise AssertionError("CRITICAL SECURITY FAULT: Mock bypass invoked in production environment.")
+    else:
+        # Development mode bypass allowed
+        if settings.environment == "development":
+            logger.info("Development Mode active: Bypassing real SNS certificate signature verification.")
+            return True
 
     # 1. Basic validation of cert URL
     cert_url = payload.get("SigningCertURL")

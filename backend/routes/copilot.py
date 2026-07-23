@@ -38,6 +38,12 @@ async def copilot_chat(
             detail="AWS Connection context not found."
         )
 
+    if connection.status == "revoked":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="AWS Connection is not active or has been revoked."
+        )
+
     msg = req.message.lower()
     proposed_action = None
 
@@ -160,27 +166,49 @@ async def decide_copilot_action(
             detail="Remediation action plan not found."
         )
 
-    # Verify user organization connection ownership
+    # Verify user organization connection ownership (SEC6)
     connection = db.query(AWSConnection).filter(
-        AWSConnection.id == action.connection_id,
-        AWSConnection.organization_id == current_user.organization_id
+        AWSConnection.id == action.connection_id
     ).first()
-    if not connection:
+    
+    # 404 if connection does not exist or belongs to different org (anti-enumeration)
+    if not connection or connection.organization_id != current_user.organization_id:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to targeted connection context."
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Remediation action plan not found."
         )
 
-    if action.user_decision != "pending":
+    # 403 if owned but revoked
+    if connection.status == "revoked":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="AWS Connection is not active or has been revoked."
+        )
+
+    # Check if a decision row already exists for this action context (SEC5/SEC8 replay protection)
+    already_decided = db.query(AgentAction).filter(
+        AgentAction.connection_id == action.connection_id,
+        AgentAction.tool_name == action.tool_name,
+        AgentAction.parameters_json == action.parameters_json,
+        AgentAction.user_decision.in_(["confirmed", "rejected"])
+    ).first()
+    if already_decided:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Action already decided. Current state: {action.user_decision}"
+            detail=f"Action already decided. Current state: {already_decided.user_decision}"
         )
 
     # Process Reject
     if req.decision == "rejected":
-        action.user_decision = "rejected"
-        action.decided_at = datetime.utcnow()
+        # Immutable append-only write (SEC8): Insert new status row
+        new_log = AgentAction(
+            connection_id=action.connection_id,
+            tool_name=action.tool_name,
+            parameters_json=action.parameters_json,
+            user_decision="rejected",
+            decided_at=datetime.utcnow()
+        )
+        db.add(new_log)
         db.commit()
         return {"status": "rejected", "message": "Action successfully discarded."}
 
@@ -188,12 +216,12 @@ async def decide_copilot_action(
     elif req.decision == "confirmed":
         tool_name = action.tool_name
         
-        # Security: Strict code-level allowed tools validation (Defense-in-depth / FR3.2)
+        # Security: Strict code-level allowed tools validation (Defense-in-depth / FR3.2 / SEC7)
         if tool_name not in ALLOWED_TOOLS:
             logger.critical(f"SECURITY ALERT: Blocked unmapped tool execution attempt: '{tool_name}'")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Security Policy violation: tool '{tool_name}' is not in the execution allow-list."
+                detail=f"Security Policy violation: tool '{tool_name}' is not in the allow-list."
             )
 
         tool_func = ALLOWED_TOOLS[tool_name]
@@ -203,17 +231,30 @@ async def decide_copilot_action(
             # Execute targeted tool call logic
             result = await tool_func(connection=connection, db=db, **params)
             
-            # Update audit trail log entries
-            action.user_decision = "confirmed"
-            action.decided_at = datetime.utcnow()
-            action.executed_result = result
+            # Immutable append-only write (SEC8): Insert new status row
+            new_log = AgentAction(
+                connection_id=action.connection_id,
+                tool_name=action.tool_name,
+                parameters_json=action.parameters_json,
+                user_decision="confirmed",
+                decided_at=datetime.utcnow(),
+                executed_result=result
+            )
+            db.add(new_log)
             db.commit()
             
             return {"status": "success", "result": result}
         except Exception as e:
-            action.user_decision = "confirmed"
-            action.decided_at = datetime.utcnow()
-            action.executed_result = f"Error: {str(e)}"
+            # Immutable append-only write (SEC8): Insert new status row even on error
+            new_log = AgentAction(
+                connection_id=action.connection_id,
+                tool_name=action.tool_name,
+                parameters_json=action.parameters_json,
+                user_decision="confirmed",
+                decided_at=datetime.utcnow(),
+                executed_result=f"Error: {str(e)}"
+            )
+            db.add(new_log)
             db.commit()
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,

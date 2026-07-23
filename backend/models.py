@@ -57,10 +57,50 @@ class AWSCredential(Base):
     id = Column(Integer, primary_key=True, index=True)
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    access_key_id = Column(String(255), nullable=True)
-    secret_access_key = Column(String(255), nullable=True)  # Should be encrypted
-    role_arn = Column(String(500), nullable=True)
-    external_id = Column(String(255), nullable=True)
+    _access_key_id = Column("access_key_id", String(255), nullable=True)
+    _secret_access_key = Column("secret_access_key", String(255), nullable=True)
+    _role_arn = Column("role_arn", String(500), nullable=True)
+    _external_id = Column("external_id", String(255), nullable=True)
+
+    @property
+    def access_key_id(self) -> str:
+        from encryption import decrypt_secret
+        return decrypt_secret(self._access_key_id)
+
+    @access_key_id.setter
+    def access_key_id(self, val: str):
+        from encryption import encrypt_secret
+        self._access_key_id = encrypt_secret(val)
+
+    @property
+    def secret_access_key(self) -> str:
+        from encryption import decrypt_secret
+        return decrypt_secret(self._secret_access_key)
+
+    @secret_access_key.setter
+    def secret_access_key(self, val: str):
+        from encryption import encrypt_secret
+        self._secret_access_key = encrypt_secret(val)
+
+    @property
+    def role_arn(self) -> str:
+        from encryption import decrypt_secret
+        return decrypt_secret(self._role_arn)
+
+    @role_arn.setter
+    def role_arn(self, val: str):
+        from encryption import encrypt_secret
+        self._role_arn = encrypt_secret(val)
+
+    @property
+    def external_id(self) -> str:
+        from encryption import decrypt_secret
+        return decrypt_secret(self._external_id)
+
+    @external_id.setter
+    def external_id(self, val: str):
+        from encryption import encrypt_secret
+        self._external_id = encrypt_secret(val)
     regions = Column(String(1000), default="ap-south-1,us-east-1")  # Comma-separated
     is_active = Column(Boolean, default=True)
     last_verified_at = Column(DateTime(timezone=True), nullable=True)
@@ -166,12 +206,32 @@ class AWSConnection(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
-    role_arn = Column(String(500), nullable=False)
-    external_id = Column(String(255), nullable=False)
+    _role_arn = Column("role_arn", String(500), nullable=False)
+    _external_id = Column("external_id", String(255), nullable=False)
     region = Column(String(100), default="ap-south-1")
     status = Column(String(50), default="connected")  # connected, revoked
     connected_at = Column(DateTime(timezone=True), server_default=func.now())
     revoked_at = Column(DateTime(timezone=True), nullable=True)
+
+    @property
+    def role_arn(self) -> str:
+        from encryption import decrypt_secret
+        return decrypt_secret(self._role_arn)
+
+    @role_arn.setter
+    def role_arn(self, val: str):
+        from encryption import encrypt_secret
+        self._role_arn = encrypt_secret(val)
+
+    @property
+    def external_id(self) -> str:
+        from encryption import decrypt_secret
+        return decrypt_secret(self._external_id)
+
+    @external_id.setter
+    def external_id(self, val: str):
+        from encryption import encrypt_secret
+        self._external_id = encrypt_secret(val)
 
     organization = relationship("Organization", back_populates="aws_connections")
 

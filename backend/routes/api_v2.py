@@ -108,8 +108,9 @@ async def verify_connection_status(
         )
 
     # Developer bypass for mock ARNs with defense-in-depth checks
-    if "mock" in conn.role_arn:
-        assert settings.environment != "production", "CRITICAL SECURITY FAULT: Mock bypass invoked in production environment."
+    if "mock" in conn.role_arn.lower():
+        if settings.environment == "production":
+            raise AssertionError("CRITICAL SECURITY FAULT: Mock bypass invoked in production environment.")
         if settings.environment == "development":
             return {
                 "status": "active",
